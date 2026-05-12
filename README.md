@@ -109,8 +109,7 @@ Star 3:
 ### Requirements
 
 - C compiler with C89/C90 support
-- Microsoft Visual Studio 2022/2026
-- GCC / Clang
+- Microsoft Visual Studio 2022/2026 or GCC / Clang
 
 No external libraries are required
 
