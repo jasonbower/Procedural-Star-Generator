@@ -12,7 +12,7 @@ The project aims to produce scientifically believable stars while still being su
 
 ### Visual Studio: 
 
-1. Open `Procedural-Star-Generator.sln` in Visual Studio.
+1. Open `Procedural-Star-Generator.slnx` in Visual Studio.
 2. Select the desired build configuration (`Debug` or `Release`).
 3. Build the project with `Ctrl + Shift + B`.
 4. Run the program with `Ctrl + F5`.
