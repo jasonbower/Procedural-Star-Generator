@@ -1,4 +1,4 @@
-# Procedural-Star-Generator
+# Procedural Star Generator
 
 A procedural star generation engine written in C that creates scientifically inspired stars spanning from tiny red dwarfs to massive blue hypergiants.
 
