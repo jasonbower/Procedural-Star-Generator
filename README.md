@@ -10,7 +10,16 @@ The project aims to produce scientifically believable stars while still being su
 
 ## Installation & How To Compile
 
-Clone the repository:
+### Visual Studio: 
+
+1. Open `Procedural-Star-Generator.sln` in Visual Studio.
+2. Select the desired build configuration (`Debug` or `Release`).
+3. Build the project with `Ctrl + Shift + B`.
+4. Run the program with `Ctrl + F5`.
+
+### GCC: 
+
+Clone the repository: 
 
 ```bash
 git clone https://github.com/yourname/procedural-star-generator.git
