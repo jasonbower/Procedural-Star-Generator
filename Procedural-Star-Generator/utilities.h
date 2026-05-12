@@ -2,6 +2,7 @@
 #define UTILITIES_H
 
 #define SIZE(array) (sizeof(array) / sizeof((array)[0]))
+
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 typedef enum boolean { FALSE, TRUE } Boolean;

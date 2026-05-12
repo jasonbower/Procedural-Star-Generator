@@ -212,6 +212,7 @@ void star_destroy(STAR* phStar)
 
 ///// STATIC HELPER FUNCTIONS /////
 
+// Weighted mass distribution: low-mass stars are far more common than high-mass stars.
 static double generate_mass(void)
 {
 	const double weights[]				 = { 0.0,   0.00003, 0.12, 0.61, 3.0,  7.6, 12.0, 76.0 };
@@ -226,6 +227,7 @@ static double generate_mass(void)
 	return my_log_interpolate(roll, prob_table, generation_mass_table, SIZE(weights));
 }
 
+// Subdwarfs are rare, old, metal-poor stars and are mostly limited to lower masses.
 static Boolean should_generate_subdwarf(double mass)
 {
 	double chance;
@@ -240,16 +242,18 @@ static Boolean should_generate_subdwarf(double mass)
 	return (my_rand_double(0.0, 100.0) < chance) ? TRUE : FALSE;
 }
 
+// Generate low metallicity Fe/H values for metal-poor subdwarf stars.
 static double generate_subdwarf_metallicity(void)
 {
 	double fe_h = my_rand_normal(-2.0, 0.45);
 
 	if (fe_h < -7.0)	fe_h = -7.0;
-	if (fe_h > -0.5)	fe_h = 0.5;
+	if (fe_h > -0.5)	fe_h = -0.5;
 
 	return fe_h;
 }
 
+// Metal-poor and subdwarf stars are biased toward older ages, younger stars are biased oppositely.
 static double generate_age(double mass, double metallicity, Boolean is_subdwarf)
 {
 	double max_age = get_total_lifetime(mass);
@@ -265,8 +269,10 @@ static double generate_age(double mass, double metallicity, Boolean is_subdwarf)
 	return my_rand_double_bias(0.0, max_age, bias);
 }
 
+// Calculates a reasonable radius for the star depending on its mass, metallicity, and age. 
 static double get_radius(double mass, double metallicity, double age)
 {
+	// Post-main-sequence radius multipliers by mass, These are tuned approximation tables, not strict stellar evolution tracks, and are heavily simplified from reality.
 	const double radius_mass_table[]		   = { 0.25, 0.3,  0.8,   1.0,   2.0,   5.0,   8.0,   20.0,  40.0, 60.0, 100.0, 200.0 };
 	const double sg_multiplier_table[]		   = { 1.0,  1.5,  2.0,   2.5,   4.0,   5.0,   6.0,   6.0,   4.5,  3.0,  1.5,   1.25 };
 	const double giant_multiplier_table[]	   = { 1.0,  40.0, 100.0, 110.0, 95.0,  80.0,  75.0,  65.0,  25.0, 7.5,  3.0,   2.5 };
@@ -281,10 +287,12 @@ static double get_radius(double mass, double metallicity, double age)
 
 	if (age > msq_lifetime)	msq_life_progress = 1.0;
 
+	// Main-sequence stars expand slightly as they age, metallicity gives a small radius adjustment.
 	radius *= (1.0 + 0.15 * msq_life_progress) * (1.0 + 0.015 * metallicity);
 
 	if (age > msq_lifetime)
 	{
+		// Post-main-sequence radius growth is split into subgiant, giant, and late-giant phases.
 		if (post_msq_life_progress < 0.40)
 			radius *= 1.0 + (post_msq_life_progress / 0.40) * (sg_multiplier - 1.0);
 		else if (post_msq_life_progress < 0.90)
@@ -296,8 +304,10 @@ static double get_radius(double mass, double metallicity, double age)
 	return radius;
 }
 
+// Calculates a reasonable surface temperature for the star depending on its mass, metallicity, age, and radius. 
 static int get_surface_temp(double mass, double metallicity, double age, double radius)
 {
+	// Minimum evolved-star temperatures and cooling strength are tuned approximation tables, These are also not perfectly scientifically accurate.
 	const double temp_mass_table[] = { 0.25, 0.3,  0.8,  1.0,  2.0,  5.0,  8.0,  20.0, 40.0, 60.0, 100.0, 200.0 };
 	const double min_temp_table[]  = { 2400, 2500, 2700, 2800, 2900, 2900, 2900, 2900, 5000, 7000, 16000, 30000 };
 	const double cooling_mass_table[]	  = { 0.25, 0.8,  2.0,  8.0,   20.0, 40.0, 60.0, 200.0 };
@@ -305,21 +315,23 @@ static int get_surface_temp(double mass, double metallicity, double age, double 
 	const double cooling_exponent = my_log_interpolate(mass, cooling_mass_table, cooling_exponent_table, SIZE(cooling_mass_table));
 	const double min_temp = my_log_interpolate(mass, temp_mass_table, min_temp_table, SIZE(temp_mass_table));
 	const double msq_lifetime = get_msq_lifetime(mass);
-	const double expansion = radius / (my_log_interpolate(mass, msq_mass_table, msq_radius_table, SIZE(msq_mass_table)) * 1.20 * (1.0 + 0.015 * metallicity));
+	const double expansion = radius / (my_log_interpolate(mass, msq_mass_table, msq_radius_table, SIZE(msq_mass_table)) * 1.20 * (1.0 + 0.015 * metallicity));		// Compare current radius against an inflated main-sequence baseline.
 	double temp = my_log_interpolate(mass, msq_mass_table, msq_temp_table, SIZE(msq_mass_table)) * (1.0 - 0.015 * metallicity);
 
-	if (age <= msq_lifetime)	temp *= 1.0 + 0.05 * age / msq_lifetime;
-	else						temp = min_temp + (temp - min_temp) / pow(expansion, cooling_exponent);
+	if (age <= msq_lifetime)	temp *= 1.0 + 0.05 * age / msq_lifetime;								// Main-sequence stars warm slightly over time.
+	else						temp = min_temp + (temp - min_temp) / pow(expansion, cooling_exponent);	// Expanded evolved stars cool toward a mass-dependent minimum temperature.
 
 	return (int)(temp + 0.5);
 }
 
+// Generates a temperature class, and a number grade. EX: M4, G2, F0, B8, M9, K5
 static TemperatureClass get_temperature_class(double surface_temp)
 {
 	TemperatureClass temperature_class;
 	double temp = surface_temp;
 	int i;
 
+	// Clamp temperature so it fits inside the spectral classification table.
 	if		(surface_temp < 2380)	temp = 2380;
 	else if (surface_temp > 61000)	temp = 60999;
 
@@ -347,6 +359,7 @@ static TemperatureClass get_temperature_class(double surface_temp)
 	return temperature_class;
 }
 
+// Takes the enum and creates an equivalent printable format
 static char print_temperature_letter(TemperatureClassLetter letter)
 {
 	switch (letter)
@@ -363,14 +376,17 @@ static char print_temperature_letter(TemperatureClassLetter letter)
 	return '?';
 }
 
+// Creates the lumionosity class strictly for main-sequence stars, not subdwarfs
 static LuminosityClass get_luminosity_class(double mass, double age, double luminosity)
 {
 	const double msq_lifetime = get_msq_lifetime(mass);
 	const double msq_life_progress = age / msq_lifetime;
 	const double post_msq_life_progress = (age - msq_lifetime) / (get_total_lifetime(mass) - msq_lifetime);
 
-	if (msq_life_progress < 1.00)							return V;
+	// Main-sequence stars not in the post main-sequence are luminosity class V.
+	if (msq_life_progress < 1.00)							return V;	
 
+	// Post-main-sequence class is approximated from mass, evolution stage, and luminosity.
 	if		(mass < 8.0 && post_msq_life_progress < 0.4)	return IV;
 	else if (mass < 2.0)									return III;
 	else if (mass < 8.0)									return II;
@@ -384,6 +400,7 @@ static LuminosityClass get_luminosity_class(double mass, double age, double lumi
 	}
 }
 
+// Takes the enum and creates an equivalent printable format
 static char* print_luminosity_class(LuminosityClass luminosity_class)
 {
 	switch (luminosity_class)

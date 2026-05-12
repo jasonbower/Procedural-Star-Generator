@@ -1,11 +1,10 @@
 #define _USE_MATH_DEFINES
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <math.h>
 #include "star_properties.h"
 #include "utilities.h"
 
+// Estimated main-sequence lifetime in billions of years.
 double get_msq_lifetime(double mass)
 {
 	const double mass_table[]	  = { 0.079,   0.10,   0.20,  0.45,  1.00, 2.00, 5.00, 10.00, 20.00, 60.00,  150.00, 200.00 };
@@ -14,6 +13,7 @@ double get_msq_lifetime(double mass)
 	return my_log_interpolate(mass, mass_table, lifetime_table, SIZE(mass_table));
 }
 
+// Adds in an extra % of the original main sequence lifetime, to account for post main sequence expansion
 double get_total_lifetime(double mass)
 {
 	const double mass_table[]			= { 0.079, 0.50, 1.00, 2.00, 8.00, 20.00, 60.00, 200.0 };
@@ -22,6 +22,7 @@ double get_total_lifetime(double mass)
 	return get_msq_lifetime(mass) * my_log_interpolate(mass, mass_table, extra_fraction_table, SIZE(mass_table));
 }
 
+// Generate stellar metallicity as Fe/H, with most stars near solar metallicity.
 double generate_metallicity(void)
 {
 	const double roll = my_rand_double(0.0, 100.0);
@@ -40,6 +41,7 @@ double generate_metallicity(void)
 	return fe_h;
 }
 
+// Calculates the density of a sphere, tuned specifially to g/cm^3
 double get_density(double mass, double radius)
 {
 	const double SOLAR_MASS   = 1.98847e33;	// grams
@@ -48,6 +50,7 @@ double get_density(double mass, double radius)
 	return (mass * SOLAR_MASS) / ((4.0 / 3.0) * M_PI * pow(radius * SOLAR_RADIUS, 3));
 }
 
+// Calculates solar luminosity from a Stefan-Boltzmann law formula derivation
 double get_luminosity(double radius, int surface_temp)
 {
 	return pow(radius, 2) * pow(surface_temp / 5772.0, 4.0);
