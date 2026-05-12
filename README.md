@@ -62,8 +62,7 @@ Star 1:
 
 ## License
 
-This project is source-available under the Procedural Star Generator
-License (PSGL) v1.0.
+This project is source-available under the Bower Source License (BSL) v1.0
 
 You may use, study, modify, and distribute this software with attribution, but you may not directly monetize or commercially exploit the software or derivative works.
 
