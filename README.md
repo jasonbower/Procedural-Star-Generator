@@ -208,7 +208,7 @@ Procedural-Star-Generator/
 
 --- 
 
-## Acknowledgments  /Credits
+## Acknowledgments / Credits
 
 This project was inspired by real-world stellar astronomy, stellar classification systems, and publicly available astrophysical reference data.
 
