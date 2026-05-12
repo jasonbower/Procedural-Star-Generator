@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="Procedural-Star-Generator/Procedural-Star-Generator.vcxproj" />
+  <Project Path="Procedural-Star-Generator/Procedural-Star-Generator.vcxproj" Id="62986b5c-ff57-4649-8dbe-722b10cd3903" />
 </Solution>

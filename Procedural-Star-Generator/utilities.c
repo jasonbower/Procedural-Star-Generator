@@ -21,9 +21,7 @@ double big_random_unit(void)
 	Bias > 1 pushes values closer to min      */
 double my_rand_double_bias(double min, double max, float bias)
 {
-	double r = big_random_unit();
-
-	r = pow(r, bias);
+	double r = pow(big_random_unit(), bias);
 
 	return min + r * (max - min);
 }
@@ -40,30 +38,25 @@ char* decimal_to_sci_notation(double decimal)
 
 	if (str == NULL)
 	{
-		printf("Error 4: Program failed to dynamically allocate memory for uninitialized string\n");
+		fprintf(stderr, "Error 4: program failed to allocate memory for string variable in decimal_to_sci_notation\n");
 		exit(1);
 	}
 
 	if (decimal < 0.01 && decimal > 0)
 	{
-		for (i = 0; decimal < 1; i++)
-		{
-			decimal *= 10;
-		}
+		for (i = 0; decimal < 1; i++)	decimal *= 10;
+
 		snprintf(str, 20, "%.2f * 10^-%d", decimal, i);
 	}
 	else if (decimal >= 10000)
 	{
-		for (i = 0; decimal > 10; i++)
-		{
-			decimal /= 10;
-		}
+		for (i = 0; decimal > 10; i++)	decimal /= 10;
+
 		snprintf(str, 20, "%.2f * 10^%d", decimal, i);
 	}
 	else
-	{
 		snprintf(str, 20, "%.2f", decimal);
-	}
+
 	return str;
 }
 
@@ -85,13 +78,13 @@ double my_log_interpolate(double x, const double* x_vals, const double* y_vals, 
 
 	if (x_vals == NULL || y_vals == NULL)
 	{
-		printf("Error 5: Interpolation arrays were NULL\n");
+		fprintf(stderr, "Error 5: null parameter(s) passed through my_log_interpolate\n");
 		exit(1);
 	}
 
 	if (size < 2)
 	{
-		printf("Error 6: Interpolation array size was invalid\n");
+		fprintf(stderr, "Error 6: illegal parameter(s) passed through my_log_interpolate\n");
 		exit(1);
 	}
 
@@ -108,7 +101,7 @@ double my_log_interpolate(double x, const double* x_vals, const double* y_vals, 
 
 			if (x2 == x1)
 			{
-				printf("Error 7: Duplicate x-values in interpolation table\n");
+				fprintf(stderr, "Error 7: illegal parameter(s) passed through my_log_interpolate\n");
 				exit(1);
 			}
 
@@ -121,7 +114,7 @@ double my_log_interpolate(double x, const double* x_vals, const double* y_vals, 
 		}
 	}
 
-	printf("Error 8: Interpolation failed to find valid interval\n");
+	fprintf(stderr, "Error 8: my_log_interpolate failed\n");
 	exit(1);
 }
 

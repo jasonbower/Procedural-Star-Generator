@@ -83,13 +83,15 @@ static char print_temperature_letter(TemperatureClassLetter letter);
 static LuminosityClass get_luminosity_class(double mass, double age, double luminosity);
 static char* print_luminosity_class(LuminosityClass luminosity_class);
 
+///// INTERFACE FUNCTIONS /////
+
 STAR star_init_default(void)
 {
-	Star* pStar = (Star*)malloc(sizeof(Star));
+	Star* pStar = (Star*)malloc(sizeof(*pStar));
 
 	if (pStar == NULL)
 	{
-		printf("Error 1: Program failed to dynamically allocate memory for uninitialized STAR object\n");
+		fprintf(stderr, "Error 1: program failed to allocate memory for Star object in star_init_default\n");
 		exit(1);
 	}
 
@@ -114,12 +116,11 @@ void star_generate_random(STAR hStar)
 
 	if (pStar == NULL)
 	{
-		printf("Error 2: Program failed to randomly generate STAR object\n");
+		fprintf(stderr, "Error 2: null parameter(s) passed through star_generate_random\n");
 		exit(1);
 	}
 
 	pStar->mass = generate_mass();
-
 	is_subdwarf = should_generate_subdwarf(pStar->mass);
 
 	if (is_subdwarf == TRUE)	pStar->metallicity = generate_subdwarf_metallicity();
@@ -151,7 +152,7 @@ void star_print_details(STAR hStar)
 
 	if (pStar == NULL)
 	{
-		printf("Error 3: Program failed to print details of STAR object\n");
+		fprintf(stderr, "Error 3: null parameter(s) passed through star_print_details\n");
 		exit(1);
 	}
 
@@ -169,15 +170,30 @@ void star_print_details(STAR hStar)
 	printf("\tMass of star: %.3f (Solar masses)\n", pStar->mass);
 	printf("\tRadius of star: %.2f (Solar radiuses)\n", pStar->radius);
 	density_str = decimal_to_sci_notation(pStar->density);
+
+	if (density_str == NULL)
+	{
+		fprintf(stderr, "Error 9: null parameter(s) passed through star_print_details\n");
+		exit(1);
+	}
+
 	printf("\tDensity of star: %s (g/cm^3)\n", density_str);
 	printf("\tSurface Temp of star: %d (K)\n", pStar->surface_temp);
 	luminosity_str = decimal_to_sci_notation(pStar->luminosity);
+
+	if (luminosity_str == NULL)
+	{
+		free(density_str);
+		fprintf(stderr, "Error 10: null parameter(s) passed through star_print_details\n");
+		exit(1);
+	}
+
 	printf("\tLuminosity of star: %s (Solar luminosities)\n", luminosity_str);
 	printf("\tMetallicity of star: %.2f (Fe/H)\n", pStar->metallicity);
 
-	if (pStar->age < 0.001)	printf("\tAge of star: %.0f (Years)\n", pStar->age * 1000000000.0);
-	else if (pStar->age < 1.0)		printf("\tAge of star: %.2f (Myr)\n", pStar->age * 1000.0);
-	else							printf("\tAge of star: %.2f (Gyr)\n", pStar->age);
+	if		(pStar->age < 0.001)	printf("\tAge of star: %.0f (Years)\n", pStar->age * 1000000000.0);
+	else if (pStar->age < 1.0)		printf("\tAge of star: %.2f (Myr)\n",	pStar->age * 1000.0);
+	else							printf("\tAge of star: %.2f (Gyr)\n",	pStar->age);
 
 	free(density_str);
 	free(luminosity_str);
@@ -185,12 +201,11 @@ void star_print_details(STAR hStar)
 
 void star_destroy(STAR* phStar)
 {
-	if (phStar == NULL || *phStar == NULL)
-	{
-		return;
-	}
+	Star* pStar;
 
-	Star* pStar = (Star*)*phStar;
+	if (phStar == NULL || *phStar == NULL)	return;
+
+	pStar = (Star*)*phStar;
 	free(pStar);
 	*phStar = NULL;
 }
@@ -199,8 +214,8 @@ void star_destroy(STAR* phStar)
 
 static double generate_mass(void)
 {
-	const double weights[] = { 0.0,   0.00003, 0.12, 0.61, 3.0,  7.6, 12.0, 76.0 };
-	const double generation_mass_table[] = { 200.0, 16,	    2.1,  1.4,  1.04, 0.8, 0.45, 0.079 };
+	const double weights[]				 = { 0.0,   0.00003, 0.12, 0.61, 3.0,  7.6, 12.0, 76.0 };
+	const double generation_mass_table[] = { 200.0, 16.0,	 2.1,  1.4,  1.04, 0.8, 0.45, 0.079 };
 	double prob_table[SIZE(weights)];
 	double roll;
 
@@ -217,7 +232,7 @@ static Boolean should_generate_subdwarf(double mass)
 
 	if (mass > 2.0)	return FALSE;
 
-	if (mass < 0.45)	chance = 1.0;
+	if		(mass < 0.45)	chance = 1.0;
 	else if (mass < 0.80)	chance = 0.75;
 	else if (mass < 1.20)	chance = 0.1;
 	else					chance = 0.025;
@@ -240,7 +255,7 @@ static double generate_age(double mass, double metallicity, Boolean is_subdwarf)
 	double max_age = get_total_lifetime(mass);
 	double bias = 0.25 * metallicity + 1.05;
 
-	if (bias < 0.60)	bias = 0.60;
+	if		(bias < 0.60)	bias = 0.60;
 	else if (bias > 1.5)	bias = 1.5;
 
 	if (is_subdwarf == TRUE)	bias -= 0.25;
@@ -252,9 +267,9 @@ static double generate_age(double mass, double metallicity, Boolean is_subdwarf)
 
 static double get_radius(double mass, double metallicity, double age)
 {
-	const double radius_mass_table[] = { 0.25, 0.3,  0.8,   1.0,   2.0,   5.0,   8.0,   20.0,  40.0, 60.0, 100.0, 200.0 };
-	const double sg_multiplier_table[] = { 1.0,  1.5,  2.0,   2.5,   4.0,   5.0,   6.0,   6.0,   4.5,  3.0,  1.5,   1.25 };
-	const double giant_multiplier_table[] = { 1.0,  30.0, 100.0, 110.0, 95.0,  80.0,  75.0,  65.0,  25.0, 7.5,  3.0,   2.5 };
+	const double radius_mass_table[]		   = { 0.25, 0.3,  0.8,   1.0,   2.0,   5.0,   8.0,   20.0,  40.0, 60.0, 100.0, 200.0 };
+	const double sg_multiplier_table[]		   = { 1.0,  1.5,  2.0,   2.5,   4.0,   5.0,   6.0,   6.0,   4.5,  3.0,  1.5,   1.25 };
+	const double giant_multiplier_table[]	   = { 1.0,  40.0, 100.0, 110.0, 95.0,  80.0,  75.0,  65.0,  25.0, 7.5,  3.0,   2.5 };
 	const double late_giant_multiplier_table[] = { 1.0,  80.0, 200.0, 220.0, 190.0, 160.0, 150.0, 130.0, 50.0, 15.0, 6.0,   5.0 };
 	const double msq_lifetime = get_msq_lifetime(mass);
 	const double post_msq_life_progress = (age - msq_lifetime) / (get_total_lifetime(mass) - msq_lifetime);
@@ -284,8 +299,8 @@ static double get_radius(double mass, double metallicity, double age)
 static int get_surface_temp(double mass, double metallicity, double age, double radius)
 {
 	const double temp_mass_table[] = { 0.25, 0.3,  0.8,  1.0,  2.0,  5.0,  8.0,  20.0, 40.0, 60.0, 100.0, 200.0 };
-	const double min_temp_table[] = { 2400, 2500, 2700, 2800, 2900, 2900, 2900, 2900, 5000, 7000, 16000, 30000 };
-	const double cooling_mass_table[] = { 0.25, 0.8,  2.0,  8.0,   20.0, 40.0, 60.0, 200.0 };
+	const double min_temp_table[]  = { 2400, 2500, 2700, 2800, 2900, 2900, 2900, 2900, 5000, 7000, 16000, 30000 };
+	const double cooling_mass_table[]	  = { 0.25, 0.8,  2.0,  8.0,   20.0, 40.0, 60.0, 200.0 };
 	const double cooling_exponent_table[] = { 0.50, 0.55, 0.63, 0.685, 0.72, 0.72, 0.66, 0.64 };
 	const double cooling_exponent = my_log_interpolate(mass, cooling_mass_table, cooling_exponent_table, SIZE(cooling_mass_table));
 	const double min_temp = my_log_interpolate(mass, temp_mass_table, min_temp_table, SIZE(temp_mass_table));
@@ -305,14 +320,14 @@ static TemperatureClass get_temperature_class(double surface_temp)
 	double temp = surface_temp;
 	int i;
 
-	if (surface_temp < 2380)	temp = 2380;
+	if		(surface_temp < 2380)	temp = 2380;
 	else if (surface_temp > 61000)	temp = 60999;
 
 	for (i = 0; i < SIZE(msq_temp_table) - 1; i++)
 	{
 		if (temp >= msq_temp_table[i] && temp < msq_temp_table[i + 1])
 		{
-			if (i <= 9)     temperature_class.letter = M;
+			if		(i <= 9)     temperature_class.letter = M;
 			else if (i <= 19)    temperature_class.letter = K;
 			else if (i <= 29)    temperature_class.letter = G;
 			else if (i <= 39)    temperature_class.letter = F;
@@ -336,14 +351,15 @@ static char print_temperature_letter(TemperatureClassLetter letter)
 {
 	switch (letter)
 	{
-	case M: return 'M';
-	case K: return 'K';
-	case G: return 'G';
-	case F: return 'F';
-	case A: return 'A';
-	case B:	return 'B';
-	case O: return 'O';
+		case M: return 'M';
+		case K: return 'K';
+		case G: return 'G';
+		case F: return 'F';
+		case A: return 'A';
+		case B:	return 'B';
+		case O: return 'O';
 	}
+
 	return '?';
 }
 
@@ -355,12 +371,12 @@ static LuminosityClass get_luminosity_class(double mass, double age, double lumi
 
 	if (msq_life_progress < 1.00)							return V;
 
-	if (mass < 8.0 && post_msq_life_progress < 0.4)	return IV;
+	if		(mass < 8.0 && post_msq_life_progress < 0.4)	return IV;
 	else if (mass < 2.0)									return III;
 	else if (mass < 8.0)									return II;
 	else
 	{
-		if (luminosity < 10000.0)						return II;
+		if		(luminosity < 10000.0)						return II;
 		else if (luminosity < 70000.0)						return IB;
 		else if (luminosity < 300000.0)						return IAB;
 		else if (luminosity < 1000000.0)					return IA;
@@ -372,15 +388,16 @@ static char* print_luminosity_class(LuminosityClass luminosity_class)
 {
 	switch (luminosity_class)
 	{
-	case SD:	  return "sd";
-	case V:		  return "V";
-	case IV:	  return "IV";
-	case III:	  return "III";
-	case II:	  return "II";
-	case IB:	  return "Ib";
-	case IAB:	  return "Iab";
-	case IA:	  return "Ia";
-	case IA_PLUS: return "Ia+";
+		case SD:	  return "sd";
+		case V:		  return "V";
+		case IV:	  return "IV";
+		case III:	  return "III";
+		case II:	  return "II";
+		case IB:	  return "Ib";
+		case IAB:	  return "Iab";
+		case IA:	  return "Ia";
+		case IA_PLUS: return "Ia+";
 	}
+
 	return "?";
 }
