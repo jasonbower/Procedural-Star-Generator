@@ -149,3 +149,13 @@ void build_cumulative_table(const double* weights, double* cumulative, int size)
 		cumulative[i] = total;
 	}
 }
+
+// If a value does not fall in [min, max], then have the value equal whatever endpoint it lands on. 
+double clamp(double value, double min, double max)
+{
+	if (value < min) return min;
+
+	if (value > max) return max;
+
+	return value;
+}

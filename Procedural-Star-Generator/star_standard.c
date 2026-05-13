@@ -1,3 +1,5 @@
+#define _USE_MATH_DEFINES
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -247,20 +249,14 @@ static double generate_subdwarf_metallicity(void)
 {
 	double fe_h = my_rand_normal(-2.0, 0.45);
 
-	if (fe_h < -7.0)	fe_h = -7.0;
-	if (fe_h > -0.5)	fe_h = -0.5;
-
-	return fe_h;
+	return clamp(fe_h, -7.0, -0.5);
 }
 
 // Metal-poor and subdwarf stars are biased toward older ages, younger stars are biased oppositely.
 static double generate_age(double mass, double metallicity, Boolean is_subdwarf)
 {
 	double max_age = get_total_lifetime(mass);
-	double bias = 0.25 * metallicity + 1.05;
-
-	if		(bias < 0.60)	bias = 0.60;
-	else if (bias > 1.5)	bias = 1.5;
+	double bias = clamp((0.25 * metallicity + 1.05), 0.6, 1.5);
 
 	if (is_subdwarf == TRUE)	bias -= 0.25;
 
@@ -273,19 +269,17 @@ static double generate_age(double mass, double metallicity, Boolean is_subdwarf)
 static double get_radius(double mass, double metallicity, double age)
 {
 	// Post-main-sequence radius multipliers by mass, These are tuned approximation tables, not strict stellar evolution tracks, and are heavily simplified from reality.
-	const double radius_mass_table[]		   = { 0.25, 0.3,  0.8,   1.0,   2.0,   5.0,   8.0,   20.0,  40.0, 60.0, 100.0, 200.0 };
-	const double sg_multiplier_table[]		   = { 1.0,  1.5,  2.0,   2.5,   4.0,   5.0,   6.0,   6.0,   4.5,  3.0,  1.5,   1.25 };
-	const double giant_multiplier_table[]	   = { 1.0,  40.0, 100.0, 110.0, 95.0,  80.0,  75.0,  65.0,  25.0, 7.5,  3.0,   2.5 };
-	const double late_giant_multiplier_table[] = { 1.0,  80.0, 200.0, 220.0, 190.0, 160.0, 150.0, 130.0, 50.0, 15.0, 6.0,   5.0 };
+	const double radius_mass_table[]		   = { 0.25,  0.3,  0.8,   1.0,   2.0,   5.0,   8.0,   20.0,  40.0, 60.0, 100.0, 200.0 };
+	const double sg_multiplier_table[]		   = { 1.01,  1.5,  2.0,   2.5,   4.0,   5.0,   6.0,   6.0,   4.5,  3.0,  1.5,   1.25 };
+	const double giant_multiplier_table[]	   = { 1.01,  40.0, 100.0, 110.0, 95.0,  80.0,  75.0,  65.0,  25.0, 7.5,  3.0,   2.5 };
+	const double late_giant_multiplier_table[] = { 1.01,  80.0, 200.0, 220.0, 190.0, 160.0, 150.0, 130.0, 50.0, 15.0, 6.0,   5.0 };
 	const double msq_lifetime = get_msq_lifetime(mass);
-	const double post_msq_life_progress = (age - msq_lifetime) / (get_total_lifetime(mass) - msq_lifetime);
+	const double post_msq_life_progress = clamp((age - msq_lifetime) / (get_total_lifetime(mass) - msq_lifetime), 0.0, 1.0);
 	const double sg_multiplier = my_log_interpolate(mass, radius_mass_table, sg_multiplier_table, SIZE(radius_mass_table));
 	const double giant_multiplier = my_log_interpolate(mass, radius_mass_table, giant_multiplier_table, SIZE(radius_mass_table));
 	const double late_giant_multiplier = my_log_interpolate(mass, radius_mass_table, late_giant_multiplier_table, SIZE(radius_mass_table));
-	double msq_life_progress = age / msq_lifetime;
+	const double msq_life_progress = clamp((age / msq_lifetime), 0.0, 1.0);
 	double radius = my_log_interpolate(mass, msq_mass_table, msq_radius_table, SIZE(msq_mass_table));
-
-	if (age > msq_lifetime)	msq_life_progress = 1.0;
 
 	// Main-sequence stars expand slightly as they age, metallicity gives a small radius adjustment.
 	radius *= (1.0 + 0.15 * msq_life_progress) * (1.0 + 0.015 * metallicity);
@@ -304,22 +298,34 @@ static double get_radius(double mass, double metallicity, double age)
 	return radius;
 }
 
-// Calculates a reasonable surface temperature for the star depending on its mass, metallicity, age, and radius. 
+// Minimum evolved-star temperatures and late-giant radius multipliers are tuned approximation tables.
 static int get_surface_temp(double mass, double metallicity, double age, double radius)
 {
-	// Minimum evolved-star temperatures and cooling strength are tuned approximation tables, These are also not perfectly scientifically accurate.
-	const double temp_mass_table[] = { 0.25, 0.3,  0.8,  1.0,  2.0,  5.0,  8.0,  20.0, 40.0, 60.0, 100.0, 200.0 };
-	const double min_temp_table[]  = { 2400, 2500, 2700, 2800, 2900, 2900, 2900, 2900, 5000, 7000, 16000, 30000 };
-	const double cooling_mass_table[]	  = { 0.25, 0.8,  2.0,  8.0,   20.0, 40.0, 60.0, 200.0 };
-	const double cooling_exponent_table[] = { 0.50, 0.55, 0.63, 0.685, 0.72, 0.72, 0.66, 0.64 };
-	const double cooling_exponent = my_log_interpolate(mass, cooling_mass_table, cooling_exponent_table, SIZE(cooling_mass_table));
+	// Minimum evolved-star temperatures are tuned approximation tables.
+	const double temp_mass_table[]			   = { 0.25,  0.3,  0.8,   1.0,   2.0,   5.0,   8.0,   20.0,  40.0, 60.0, 100.0, 200.0 };
+	const double min_temp_table[]			   = { 2400,  2500, 2700,  2800,  2900,  2900,  3000,  3200,  8000, 11000, 16000, 30000 };
+	const double late_giant_multiplier_table[] = { 1.01,  80.0, 200.0, 220.0, 190.0, 160.0, 150.0, 130.0, 50.0, 15.0, 6.0,   5.0 };
 	const double min_temp = my_log_interpolate(mass, temp_mass_table, min_temp_table, SIZE(temp_mass_table));
 	const double msq_lifetime = get_msq_lifetime(mass);
-	const double expansion = radius / (my_log_interpolate(mass, msq_mass_table, msq_radius_table, SIZE(msq_mass_table)) * 1.20 * (1.0 + 0.015 * metallicity));		// Compare current radius against an inflated main-sequence baseline.
+	const double msq_radius = my_log_interpolate(mass, msq_mass_table, msq_radius_table, SIZE(msq_mass_table));
+	const double start_radius = msq_radius * 1.15 * (1.0 + 0.015 * metallicity);
+	const double max_radius = start_radius * my_log_interpolate(mass, temp_mass_table, late_giant_multiplier_table, SIZE(temp_mass_table));
+	const double radius_progress = clamp(((radius - start_radius) / (max_radius - start_radius)), 0.0, 1.0);	// Treat post-main-sequence cooling as progress between the starting subgiant radius and the maximum late-giant/supergiant radius.
 	double temp = my_log_interpolate(mass, msq_mass_table, msq_temp_table, SIZE(msq_mass_table)) * (1.0 - 0.015 * metallicity);
+	double start_temp = temp * 1.05;	// Slight temperature bump at the start of post-main-sequence evolution.
+	double cooling_mass = mass; 
+	double temp_progress;
+	double base;
 
-	if (age <= msq_lifetime)	temp *= 1.0 + 0.05 * age / msq_lifetime;								// Main-sequence stars warm slightly over time.
-	else						temp = min_temp + (temp - min_temp) / pow(expansion, cooling_exponent);	// Expanded evolved stars cool toward a mass-dependent minimum temperature.
+	if (age <= msq_lifetime)	temp *= 1.0 + 0.05 * age / msq_lifetime;
+	else
+	{
+		if (mass > 20.0)	cooling_mass = 20.0 / pow(mass / 20.0, 3.0);	// Reduces high-mass cooling strength so very massive supergiants do not cool too aggressively.
+
+		base = pow((4.0 / 3.0) * M_PI * cooling_mass, 3.0);								// Controls how quickly temperature approaches min_temp as radius expands.
+		temp_progress = (1.0 - pow(base, -radius_progress)) / (1.0 - pow(base, -1.0));	// Nonlinear 0-1 cooling curve.
+		temp = start_temp + (min_temp - start_temp) * temp_progress;
+	}
 
 	return (int)(temp + 0.5);
 }
@@ -328,12 +334,8 @@ static int get_surface_temp(double mass, double metallicity, double age, double 
 static TemperatureClass get_temperature_class(double surface_temp)
 {
 	TemperatureClass temperature_class;
-	double temp = surface_temp;
+	const double temp = clamp(surface_temp, 2380.0, 61000.0);
 	int i;
-
-	// Clamp temperature so it fits inside the spectral classification table.
-	if		(surface_temp < 2380)	temp = 2380;
-	else if (surface_temp > 61000)	temp = 60999;
 
 	for (i = 0; i < SIZE(msq_temp_table) - 1; i++)
 	{

@@ -34,11 +34,7 @@ double generate_metallicity(void)
 	else if (roll < 99.9)	fe_h = my_rand_normal(-1.45, 0.35);
 	else					fe_h = my_rand_normal(-3.0,  0.40);
 
-	if (fe_h < -5.5)	fe_h = -5.5;
-
-	if (fe_h > 1.0)		fe_h = 1.0;
-
-	return fe_h;
+	return clamp(fe_h, -5.5, 1.0);
 }
 
 // Calculates the density of a sphere, tuned specifially to g/cm^3

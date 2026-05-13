@@ -23,4 +23,6 @@ double my_log_interpolate(double x, const double* x_vals, const double* y_vals, 
 
 void build_cumulative_table(const double* weights, double* cumulative, int size);
 
+double clamp(double value, double min, double max); 
+
 #endif 
