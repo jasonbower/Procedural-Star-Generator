@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <windows.h>
-#include "star_standard.h"
+#include "star.h"
 
 int main(int argc, char* argv[])
 {

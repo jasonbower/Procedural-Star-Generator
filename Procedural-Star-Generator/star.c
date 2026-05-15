@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include "star_standard.h"
+#include "star.h"
 #include "utilities.h"
 #include "star_properties.h"
 

@@ -128,13 +128,13 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="star_properties.h" />
-    <ClInclude Include="star_standard.h" />
+    <ClInclude Include="star.h" />
     <ClInclude Include="utilities.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.c" />
     <ClCompile Include="star_properties.c" />
-    <ClCompile Include="star_standard.c" />
+    <ClCompile Include="star.c" />
     <ClCompile Include="utilities.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

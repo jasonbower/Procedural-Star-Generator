@@ -1,5 +1,5 @@
-#ifndef STAR_STANDARD_H
-#define STAR_STANDARD_H
+#ifndef STAR_H
+#define STAR_H
 
 typedef void* STAR;
 
