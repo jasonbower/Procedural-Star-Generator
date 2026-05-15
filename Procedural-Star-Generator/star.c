@@ -29,9 +29,9 @@ typedef enum star_type
 
 typedef struct spectral_class
 {
-	TemperatureClassLetter letter;
-	WREmissions emission;
-	int number;
+	TemperatureClassLetter temperature_class;
+	WREmissions emission_class;
+	int grade;
 	LuminosityClass luminosity_class;
 } SpectralClass;
 
@@ -88,8 +88,8 @@ static double generate_age(double mass, double metallicity, StarType type);
 static double get_radius(double mass, double metallicity, double age);
 static int get_surface_temp(double mass, double metallicity, double age, double radius);
 static SpectralClass get_spectral_class(double mass, double age, double surface_temp, double luminosity, StarType type); 
-static char print_temperature_letter(TemperatureClassLetter letter);
 static LuminosityClass get_luminosity_class(double mass, double age, double luminosity, StarType type);
+static char print_temperature_letter(TemperatureClassLetter letter);
 static char* print_luminosity_class(LuminosityClass luminosity_class);
 
 ///// INTERFACE FUNCTIONS /////
@@ -111,9 +111,9 @@ STAR star_init_default(void)
 	pStar->surface_temp = 0;
 	pStar->luminosity = 0.0;
 	pStar->density = 0.0;
-	pStar->class.letter = TC_UNASSIGNED;
-	pStar->class.emission = WRE_UNASSIGNED;
-	pStar->class.number = 0;
+	pStar->class.temperature_class = TC_UNASSIGNED;
+	pStar->class.emission_class = WRE_UNASSIGNED;
+	pStar->class.grade = 0;
 	pStar->class.luminosity_class = LC_UNASSIGNED;
 	pStar->type = ST_UNASSIGNED; 
 
@@ -168,12 +168,12 @@ void star_print_details(STAR hStar)
 	if (pStar->class.luminosity_class == LC_SD)
 		printf("\tSpectral classification: %s%c%d\n",
 			print_luminosity_class(pStar->class.luminosity_class),
-			print_temperature_letter(pStar->class.letter),
-			pStar->class.number);
+			print_temperature_letter(pStar->class.temperature_class),
+			pStar->class.grade);
 	else
 		printf("\tSpectral classification: %c%d%s\n",
-			print_temperature_letter(pStar->class.letter),
-			pStar->class.number,
+			print_temperature_letter(pStar->class.temperature_class),
+			pStar->class.grade,
 			print_luminosity_class(pStar->class.luminosity_class));
 
 	printf("\tMass of star: %.3f (Solar masses)\n", pStar->mass);
@@ -344,48 +344,28 @@ static SpectralClass get_spectral_class(double mass, double age, double surface_
 	const double temp = clamp(surface_temp, 2380.0, 61000.0);
 	int i;
 
-	spectral_class.letter = TC_UNASSIGNED;
-	spectral_class.emission = WRE_UNASSIGNED;
-	spectral_class.number = -1;
 	spectral_class.luminosity_class = get_luminosity_class(mass, age, luminosity, type);
+	spectral_class.emission_class = WRE_UNASSIGNED; /*get_emissions_class();*/
 
 	for (i = 0; i < SIZE(msq_temp_table) - 1; i++)
 	{
 		if (temp >= msq_temp_table[i] && temp < msq_temp_table[i + 1])
 		{
-			if (i <= 9)	spectral_class.letter = TC_M;
-			else if (i <= 19)	spectral_class.letter = TC_K;
-			else if (i <= 29)	spectral_class.letter = TC_G;
-			else if (i <= 39)	spectral_class.letter = TC_F;
-			else if (i <= 49)	spectral_class.letter = TC_A;
-			else if (i <= 59)	spectral_class.letter = TC_B;
-			else				spectral_class.letter = TC_O;
+			if		(i <= 9)	spectral_class.temperature_class = TC_M;
+			else if (i <= 19)	spectral_class.temperature_class = TC_K;
+			else if (i <= 29)	spectral_class.temperature_class = TC_G;
+			else if (i <= 39)	spectral_class.temperature_class = TC_F;
+			else if (i <= 49)	spectral_class.temperature_class = TC_A;
+			else if (i <= 59)	spectral_class.temperature_class = TC_B;
+			else				spectral_class.temperature_class = TC_O;
 
-			spectral_class.number = 9 - (i % 10);
+			spectral_class.grade = 9 - (i % 10);
 
 			return spectral_class;
 		}
 	}
 
 	return spectral_class;
-}
-
-// Takes the enum and creates an equivalent printable format
-static char print_temperature_letter(TemperatureClassLetter letter)
-{
-	switch (letter)
-	{
-		case TC_M:	return 'M';
-		case TC_K:	return 'K';
-		case TC_G:	return 'G';
-		case TC_F:	return 'F';
-		case TC_A:	return 'A';
-		case TC_B:	return 'B';
-		case TC_O:	return 'O';
-		case TC_W:	return 'W'; 
-	}
-
-	return '?';
 }
 
 // Creates the luminosity class strictly for main-sequence stars, not subdwarfs
@@ -415,19 +395,37 @@ static LuminosityClass get_luminosity_class(double mass, double age, double lumi
 }
 
 // Takes the enum and creates an equivalent printable format
+static char print_temperature_letter(TemperatureClassLetter letter)
+{
+	switch (letter)
+	{
+	case TC_M:	return 'M';
+	case TC_K:	return 'K';
+	case TC_G:	return 'G';
+	case TC_F:	return 'F';
+	case TC_A:	return 'A';
+	case TC_B:	return 'B';
+	case TC_O:	return 'O';
+	case TC_W:	return 'W';
+	}
+
+	return '?';
+}
+
+// Takes the enum and creates an equivalent printable format
 static char* print_luminosity_class(LuminosityClass luminosity_class)
 {
 	switch (luminosity_class)
 	{
-		case LC_SD:	  return "sd";
-		case LC_V:		  return "V";
-		case LC_IV:	  return "IV";
-		case LC_III:	  return "III";
-		case LC_II:	  return "II";
-		case LC_IB:	  return "Ib";
-		case LC_IAB:	  return "Iab";
-		case LC_IA:	  return "Ia";
-		case LC_IA_PLUS: return "Ia+";
+		case LC_SD:			return "sd";
+		case LC_V:			return "V";
+		case LC_IV:			return "IV";
+		case LC_III:		return "III";
+		case LC_II:			return "II";
+		case LC_IB:			return "Ib";
+		case LC_IAB:		return "Iab";
+		case LC_IA:			return "Ia";
+		case LC_IA_PLUS:	return "Ia+";
 	}
 
 	return "?";
