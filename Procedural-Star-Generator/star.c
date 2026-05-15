@@ -9,23 +9,29 @@
 
 typedef enum temperature_class_letter
 {
-	TC_UNASSIGNED, M, K, G, F, A, B, O,
+	TC_UNASSIGNED, TC_M, TC_K, TC_G, TC_F, TC_A, TC_B, TC_O, TC_W, 
 } TemperatureClassLetter;
 
 typedef enum luminosity_class
 {
-	LC_UNASSIGNED, SD, V, IV, III, II, IB, IAB, IA, IA_PLUS
+	LC_UNASSIGNED, LC_SD, LC_V, LC_IV, LC_III, LC_II, LC_IB, LC_IAB, LC_IA, LC_IA_PLUS
 } LuminosityClass;
 
-typedef struct temperature_class
+typedef enum wolf_rayet_emissions
 {
-	TemperatureClassLetter letter;
-	int number;
-} TemperatureClass;
+	WRE_UNASSIGNED, WR_N, WR_C, WR_O
+} WREmissions;
+
+typedef enum star_type
+{
+	ST_UNASSIGNED, ST_STANDARD, ST_COOL_SUBDWARF, ST_WOLF_RAYET
+} StarType;
 
 typedef struct spectral_class
 {
-	TemperatureClass temperature_class;
+	TemperatureClassLetter letter;
+	WREmissions emission;
+	int number;
 	LuminosityClass luminosity_class;
 } SpectralClass;
 
@@ -39,6 +45,7 @@ typedef struct star // KNOWN TYPE
 	double luminosity;
 	double density;
 	SpectralClass class;
+	StarType type; 
 } Star;
 
 static const double msq_mass_table[] =
@@ -75,14 +82,14 @@ static const double msq_temp_table[] = {
 
 ///// STATIC HELPER FUNCTIONS /////
 static double generate_mass(void);
-static Boolean should_generate_subdwarf(double mass);
+static StarType should_generate_subdwarf(double mass);
 static double generate_subdwarf_metallicity(void);
-static double generate_age(double mass, double metallicity, Boolean is_subdwarf);
+static double generate_age(double mass, double metallicity, StarType type);
 static double get_radius(double mass, double metallicity, double age);
 static int get_surface_temp(double mass, double metallicity, double age, double radius);
-static TemperatureClass get_temperature_class(double surface_temp);
+static SpectralClass get_spectral_class(double mass, double age, double surface_temp, double luminosity, StarType type); 
 static char print_temperature_letter(TemperatureClassLetter letter);
-static LuminosityClass get_luminosity_class(double mass, double age, double luminosity);
+static LuminosityClass get_luminosity_class(double mass, double age, double luminosity, StarType type);
 static char* print_luminosity_class(LuminosityClass luminosity_class);
 
 ///// INTERFACE FUNCTIONS /////
@@ -104,9 +111,11 @@ STAR star_init_default(void)
 	pStar->surface_temp = 0;
 	pStar->luminosity = 0.0;
 	pStar->density = 0.0;
-	pStar->class.temperature_class.letter = TC_UNASSIGNED;
-	pStar->class.temperature_class.number = 0;
+	pStar->class.letter = TC_UNASSIGNED;
+	pStar->class.emission = WRE_UNASSIGNED;
+	pStar->class.number = 0;
 	pStar->class.luminosity_class = LC_UNASSIGNED;
+	pStar->type = ST_UNASSIGNED; 
 
 	return pStar;
 }
@@ -114,7 +123,6 @@ STAR star_init_default(void)
 void star_generate_random(STAR hStar)
 {
 	Star* pStar = (Star*)hStar;
-	Boolean is_subdwarf;
 
 	if (pStar == NULL)
 	{
@@ -123,16 +131,18 @@ void star_generate_random(STAR hStar)
 	}
 
 	pStar->mass = generate_mass();
-	is_subdwarf = should_generate_subdwarf(pStar->mass);
+	pStar->type = should_generate_subdwarf(pStar->mass);
 
-	if (is_subdwarf == TRUE)	pStar->metallicity = generate_subdwarf_metallicity();
-	else						pStar->metallicity = generate_metallicity();
+	if (pStar->type == ST_UNASSIGNED)	pStar->type = ST_STANDARD;
 
-	pStar->age = generate_age(pStar->mass, pStar->metallicity, is_subdwarf);
+	if (pStar->type == ST_COOL_SUBDWARF)	pStar->metallicity = generate_subdwarf_metallicity();
+	else									pStar->metallicity = generate_metallicity();
+
+	pStar->age = generate_age(pStar->mass, pStar->metallicity, pStar->type);
 	pStar->radius = get_radius(pStar->mass, pStar->metallicity, pStar->age);
 	pStar->surface_temp = get_surface_temp(pStar->mass, pStar->metallicity, pStar->age, pStar->radius);
 
-	if (is_subdwarf == TRUE)
+	if (pStar->type == ST_COOL_SUBDWARF)
 	{
 		pStar->radius *= my_rand_double(0.80, 0.90);
 		pStar->surface_temp = (int)(pStar->surface_temp * my_rand_double(1.02, 1.08) + 0.5);
@@ -140,10 +150,7 @@ void star_generate_random(STAR hStar)
 
 	pStar->luminosity = get_luminosity(pStar->radius, pStar->surface_temp);
 	pStar->density = get_density(pStar->mass, pStar->radius);
-	pStar->class.temperature_class = get_temperature_class(pStar->surface_temp);
-
-	if (is_subdwarf == TRUE)	pStar->class.luminosity_class = SD;
-	else						pStar->class.luminosity_class = get_luminosity_class(pStar->mass, pStar->age, pStar->luminosity);
+	pStar->class = get_spectral_class(pStar->mass, pStar->age, pStar->surface_temp, pStar->luminosity, pStar->type);
 }
 
 void star_print_details(STAR hStar)
@@ -158,15 +165,15 @@ void star_print_details(STAR hStar)
 		exit(1);
 	}
 
-	if (pStar->class.luminosity_class == SD)
+	if (pStar->class.luminosity_class == LC_SD)
 		printf("\tSpectral classification: %s%c%d\n",
 			print_luminosity_class(pStar->class.luminosity_class),
-			print_temperature_letter(pStar->class.temperature_class.letter),
-			pStar->class.temperature_class.number);
+			print_temperature_letter(pStar->class.letter),
+			pStar->class.number);
 	else
 		printf("\tSpectral classification: %c%d%s\n",
-			print_temperature_letter(pStar->class.temperature_class.letter),
-			pStar->class.temperature_class.number,
+			print_temperature_letter(pStar->class.letter),
+			pStar->class.number,
 			print_luminosity_class(pStar->class.luminosity_class));
 
 	printf("\tMass of star: %.3f (Solar masses)\n", pStar->mass);
@@ -230,18 +237,18 @@ static double generate_mass(void)
 }
 
 // Subdwarfs are rare, old, metal-poor stars and are mostly limited to lower masses.
-static Boolean should_generate_subdwarf(double mass)
+static StarType should_generate_subdwarf(double mass)
 {
 	double chance;
 
-	if (mass > 2.0)	return FALSE;
+	if (mass > 2.0)	return ST_UNASSIGNED;
 
 	if		(mass < 0.45)	chance = 1.0;
 	else if (mass < 0.80)	chance = 0.75;
 	else if (mass < 1.20)	chance = 0.1;
 	else					chance = 0.025;
 
-	return (my_rand_double(0.0, 100.0) < chance) ? TRUE : FALSE;
+	return (my_rand_double(0.0, 100.0) < chance) ? ST_COOL_SUBDWARF : ST_UNASSIGNED;
 }
 
 // Generate low metallicity Fe/H values for metal-poor subdwarf stars.
@@ -253,12 +260,12 @@ static double generate_subdwarf_metallicity(void)
 }
 
 // Metal-poor and subdwarf stars are biased toward older ages, younger stars are biased oppositely.
-static double generate_age(double mass, double metallicity, Boolean is_subdwarf)
+static double generate_age(double mass, double metallicity, StarType type)
 {
 	double max_age = get_total_lifetime(mass);
 	double bias = clamp((0.25 * metallicity + 1.05), 0.6, 1.5);
 
-	if (is_subdwarf == TRUE)	bias -= 0.25;
+	if (type == ST_COOL_SUBDWARF)	bias -= 0.25;
 
 	if (max_age > 13.8)	max_age = 13.8;
 
@@ -331,34 +338,36 @@ static int get_surface_temp(double mass, double metallicity, double age, double 
 }
 
 // Generates a temperature class, and a number grade. EX: M4, G2, F0, B8, M9, K5
-static TemperatureClass get_temperature_class(double surface_temp)
+static SpectralClass get_spectral_class(double mass, double age, double surface_temp, double luminosity, StarType type)
 {
-	TemperatureClass temperature_class;
+	SpectralClass spectral_class;
 	const double temp = clamp(surface_temp, 2380.0, 61000.0);
 	int i;
+
+	spectral_class.letter = TC_UNASSIGNED;
+	spectral_class.emission = WRE_UNASSIGNED;
+	spectral_class.number = -1;
+	spectral_class.luminosity_class = get_luminosity_class(mass, age, luminosity, type);
 
 	for (i = 0; i < SIZE(msq_temp_table) - 1; i++)
 	{
 		if (temp >= msq_temp_table[i] && temp < msq_temp_table[i + 1])
 		{
-			if		(i <= 9)     temperature_class.letter = M;
-			else if (i <= 19)    temperature_class.letter = K;
-			else if (i <= 29)    temperature_class.letter = G;
-			else if (i <= 39)    temperature_class.letter = F;
-			else if (i <= 49)    temperature_class.letter = A;
-			else if (i <= 59)    temperature_class.letter = B;
-			else                 temperature_class.letter = O;
+			if (i <= 9)	spectral_class.letter = TC_M;
+			else if (i <= 19)	spectral_class.letter = TC_K;
+			else if (i <= 29)	spectral_class.letter = TC_G;
+			else if (i <= 39)	spectral_class.letter = TC_F;
+			else if (i <= 49)	spectral_class.letter = TC_A;
+			else if (i <= 59)	spectral_class.letter = TC_B;
+			else				spectral_class.letter = TC_O;
 
-			temperature_class.number = 9 - (i % 10);
+			spectral_class.number = 9 - (i % 10);
 
-			return temperature_class;
+			return spectral_class;
 		}
 	}
 
-	temperature_class.letter = TC_UNASSIGNED;
-	temperature_class.number = -67;
-
-	return temperature_class;
+	return spectral_class;
 }
 
 // Takes the enum and creates an equivalent printable format
@@ -366,39 +375,42 @@ static char print_temperature_letter(TemperatureClassLetter letter)
 {
 	switch (letter)
 	{
-		case M: return 'M';
-		case K: return 'K';
-		case G: return 'G';
-		case F: return 'F';
-		case A: return 'A';
-		case B:	return 'B';
-		case O: return 'O';
+		case TC_M:	return 'M';
+		case TC_K:	return 'K';
+		case TC_G:	return 'G';
+		case TC_F:	return 'F';
+		case TC_A:	return 'A';
+		case TC_B:	return 'B';
+		case TC_O:	return 'O';
+		case TC_W:	return 'W'; 
 	}
 
 	return '?';
 }
 
-// Creates the lumionosity class strictly for main-sequence stars, not subdwarfs
-static LuminosityClass get_luminosity_class(double mass, double age, double luminosity)
+// Creates the luminosity class strictly for main-sequence stars, not subdwarfs
+static LuminosityClass get_luminosity_class(double mass, double age, double luminosity, StarType type)
 {
 	const double msq_lifetime = get_msq_lifetime(mass);
 	const double msq_life_progress = age / msq_lifetime;
 	const double post_msq_life_progress = (age - msq_lifetime) / (get_total_lifetime(mass) - msq_lifetime);
 
+	if (type == ST_COOL_SUBDWARF)							return LC_SD; 
+
 	// Main-sequence stars not in the post main-sequence are luminosity class V.
-	if (msq_life_progress < 1.00)							return V;	
+	if (msq_life_progress < 1.00)							return LC_V;	
 
 	// Post-main-sequence class is approximated from mass, evolution stage, and luminosity.
-	if		(mass < 8.0 && post_msq_life_progress < 0.4)	return IV;
-	else if (mass < 2.0)									return III;
-	else if (mass < 8.0)									return II;
+	if		(mass < 8.0 && post_msq_life_progress < 0.4)	return LC_IV;
+	else if (mass < 2.0)									return LC_III;
+	else if (mass < 8.0)									return LC_II;
 	else
 	{
-		if		(luminosity < 10000.0)						return II;
-		else if (luminosity < 70000.0)						return IB;
-		else if (luminosity < 300000.0)						return IAB;
-		else if (luminosity < 1000000.0)					return IA;
-		else												return IA_PLUS;
+		if		(luminosity < 10000.0)						return LC_II;
+		else if (luminosity < 70000.0)						return LC_IB;
+		else if (luminosity < 300000.0)						return LC_IAB;
+		else if (luminosity < 1000000.0)					return LC_IA;
+		else												return LC_IA_PLUS;
 	}
 }
 
@@ -407,15 +419,15 @@ static char* print_luminosity_class(LuminosityClass luminosity_class)
 {
 	switch (luminosity_class)
 	{
-		case SD:	  return "sd";
-		case V:		  return "V";
-		case IV:	  return "IV";
-		case III:	  return "III";
-		case II:	  return "II";
-		case IB:	  return "Ib";
-		case IAB:	  return "Iab";
-		case IA:	  return "Ia";
-		case IA_PLUS: return "Ia+";
+		case LC_SD:	  return "sd";
+		case LC_V:		  return "V";
+		case LC_IV:	  return "IV";
+		case LC_III:	  return "III";
+		case LC_II:	  return "II";
+		case LC_IB:	  return "Ib";
+		case LC_IAB:	  return "Iab";
+		case LC_IA:	  return "Ia";
+		case LC_IA_PLUS: return "Ia+";
 	}
 
 	return "?";
