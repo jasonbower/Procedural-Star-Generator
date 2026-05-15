@@ -147,7 +147,7 @@ void star_generate_random(STAR hStar)
 			generate_standard_star_information(pStar);
 			break;
 		default:
-			fprintf(stderr, "Error: star_generate_random failed\n");
+			fprintf(stderr, "Error: invalid information passed through star_generate_random\n");
 			exit(1);
 	}
 }
@@ -240,7 +240,7 @@ static StarType should_generate_cool_subdwarf(double mass)
 {
 	double chance;
 
-	if (mass > 2.0)	return ST_UNASSIGNED;
+	if (mass > 2.0)	return ST_STANDARD;
 
 	if		(mass < 0.45)	chance = 1.0;
 	else if (mass < 0.80)	chance = 0.75;
