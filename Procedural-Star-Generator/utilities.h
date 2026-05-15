@@ -25,4 +25,6 @@ void build_cumulative_table(const double* weights, double* cumulative, int size)
 
 double clamp(double value, double min, double max); 
 
+int clamp_int(int value, int min, int max); 
+
 #endif 

@@ -9,7 +9,7 @@
 
 typedef enum temperature_class_letter
 {
-	TC_UNASSIGNED, TC_M, TC_K, TC_G, TC_F, TC_A, TC_B, TC_O, TC_W, 
+	TC_UNASSIGNED, TC_M, TC_K, TC_G, TC_F, TC_A, TC_B, TC_O, 
 } TemperatureClassLetter;
 
 typedef enum luminosity_class
@@ -19,7 +19,7 @@ typedef enum luminosity_class
 
 typedef enum wolf_rayet_emissions
 {
-	WRE_UNASSIGNED, WR_N, WR_C, WR_O
+	WRE_UNASSIGNED, WR_WN, WR_WC, WR_WO
 } WREmissions;
 
 typedef enum star_type
@@ -83,16 +83,19 @@ static const double msq_temp_table[] = {
 ///// STATIC HELPER FUNCTIONS /////
 static double generate_mass(void);
 static StarType should_generate_cool_subdwarf(double mass);
+static Boolean should_generate_wolf_rayet(double mass, double metallicity, double age); 
 static double generate_subdwarf_metallicity(void);
 static double generate_age(double mass, double metallicity, StarType type);
 static double get_radius(double mass, double metallicity, double age);
 static int get_surface_temp(double mass, double metallicity, double age, double radius);
-static SpectralClass get_spectral_class(double mass, double age, double surface_temp, double luminosity, StarType type); 
-static LuminosityClass get_luminosity_class(double mass, double age, double luminosity, StarType type);
+static SpectralClass get_standard_or_subdwarf_spectral_class(double mass, double age, double surface_temp, double luminosity, StarType type); 
+static SpectralClass get_wolf_rayet_spectral_class(double mass, double age, double surface_temp); 
 static char print_temperature_letter(TemperatureClassLetter letter);
 static char* print_luminosity_class(LuminosityClass luminosity_class);
+static char* print_wolf_rayet_emission_class(WREmissions emission_class); 
 static void generate_standard_star_information(Star* pStar); 
 static void generate_cool_subdwarf_information(Star* pStar); 
+static void generate_wolf_rayet_information(Star* pStar); 
 
 ///// INTERFACE FUNCTIONS /////
 
@@ -106,7 +109,7 @@ STAR star_init_default(void)
 		exit(1);
 	}
 
-	pStar->mass = 0.0;
+	pStar->mass	= 0.0;
 	pStar->metallicity = 0.0;
 	pStar->age = 0.0;
 	pStar->radius = 0.0;
@@ -115,7 +118,7 @@ STAR star_init_default(void)
 	pStar->density = 0.0;
 	pStar->class.temperature_class = TC_UNASSIGNED;
 	pStar->class.emission_class = WRE_UNASSIGNED;
-	pStar->class.grade = 0;
+	pStar->class.grade = -1;
 	pStar->class.luminosity_class = LC_UNASSIGNED;
 	pStar->type = ST_UNASSIGNED; 
 
@@ -140,10 +143,7 @@ void star_generate_random(STAR hStar)
 		case ST_COOL_SUBDWARF:
 			generate_cool_subdwarf_information(pStar);
 			break;
-		case ST_WOLF_RAYET:
-			/*generate_wolf_rayet_information(pStar);*/
-			break;
-		case ST_STANDARD:
+		case ST_STANDARD:	// Also deals with Wolf-Rayet stars
 			generate_standard_star_information(pStar);
 			break;
 		default:
@@ -168,6 +168,10 @@ void star_print_details(STAR hStar)
 		printf("\tSpectral classification: %s%c%d\n",
 			print_luminosity_class(pStar->class.luminosity_class),
 			print_temperature_letter(pStar->class.temperature_class),
+			pStar->class.grade);
+	else if (pStar->type == ST_WOLF_RAYET)
+		printf("\tSpectral classification: %s%d\n",
+			print_wolf_rayet_emission_class(pStar->class.emission_class),
 			pStar->class.grade);
 	else
 		printf("\tSpectral classification: %c%d%s\n",
@@ -248,6 +252,32 @@ static StarType should_generate_cool_subdwarf(double mass)
 	else					chance = 0.025;
 
 	return (my_rand_double(0.0, 100.0) < chance) ? ST_COOL_SUBDWARF : ST_STANDARD;
+}
+
+// Detemines if a star is a canidate to undergo a Wolf-Rayet phase at the end of its life. Probability increases with progenitor mass, life progress, and metallicity
+static Boolean should_generate_wolf_rayet(double mass, double metallicity, double age)
+{
+	double life_progress;
+	double chance;
+
+	if (mass < 20.0)	return FALSE;
+
+	life_progress = age / get_total_lifetime(mass);
+
+	// WR stars are modeled as a late-life phase, not an early main-sequence state.
+	if (life_progress < 0.65)	return FALSE;
+
+	if		(mass < 30.0)	chance = 2.5;
+	else if (mass < 60.0)	chance = 12.5;
+	else if (mass < 100.0)	chance = 30.0;
+	else					chance = 50.0;
+
+	// Higher metallicity strengthens stellar winds, making WR formation more likely.
+	chance *= clamp(1.0 + 0.25 * metallicity, 0.5, 1.5);
+
+	if (life_progress > 0.85)	chance *= 1.5;
+
+	return (my_rand_double(0.0, 100.0) < chance) ? TRUE : FALSE;
 }
 
 // Generate low metallicity Fe/H values for metal-poor subdwarf stars.
@@ -336,18 +366,36 @@ static int get_surface_temp(double mass, double metallicity, double age, double 
 	return (int)(temp + 0.5);
 }
 
-// Generates a temperature class, and a number grade. EX: M4, G2, F0, B8, M9, K5
-static SpectralClass get_spectral_class(double mass, double age, double surface_temp, double luminosity, StarType type)
+// Creates the spectral classification for standard stars or subdwarfs. 
+static SpectralClass get_standard_or_subdwarf_spectral_class(double mass, double age, double surface_temp, double luminosity, StarType type)
 {
 	SpectralClass spectral_class;
-	const double temp = clamp(surface_temp, 2380.0, 61000.0);
+	const double temp = clamp(surface_temp, 2380.0, 60999.999);
+	const double msq_lifetime = get_msq_lifetime(mass);
+	const double msq_life_progress = age / msq_lifetime;
+	const double post_msq_life_progress = (age - msq_lifetime) / (get_total_lifetime(mass) - msq_lifetime);
 	int i;
 
-	spectral_class.luminosity_class = get_luminosity_class(mass, age, luminosity, type);
-	spectral_class.emission_class = WRE_UNASSIGNED; /*get_emissions_class();*/
+	spectral_class.emission_class = WRE_UNASSIGNED;
+	
+	// Creates the luminosity class for standard, and cool subdwarf stars and in the future hot subdwarfs. 
+	if		(type == ST_COOL_SUBDWARF && msq_life_progress < 1.00)	
+															spectral_class.luminosity_class = LC_SD;
+	// Main-sequence stars not in the post main-sequence are luminosity class V.
+	else if (msq_life_progress < 1.00)						spectral_class.luminosity_class = LC_V;
+	// Post-main-sequence class is approximated from mass, evolution stage, and luminosity.
+	else if (mass < 8.0 && post_msq_life_progress < 0.4)	spectral_class.luminosity_class = LC_IV;
+	else if (mass < 2.0)									spectral_class.luminosity_class = LC_III;
+	else if (mass < 8.0)									spectral_class.luminosity_class = LC_II;
+	else if (luminosity < 10000.0)							spectral_class.luminosity_class = LC_II;
+	else if (luminosity < 70000.0)							spectral_class.luminosity_class = LC_IB;
+	else if (luminosity < 300000.0)							spectral_class.luminosity_class = LC_IAB;
+	else if (luminosity < 1000000.0)						spectral_class.luminosity_class = LC_IA;
+	else													spectral_class.luminosity_class = LC_IA_PLUS;
 
 	for (i = 0; i < SIZE(msq_temp_table) - 1; i++)
 	{
+		// Gets temperature class from the msq_temperature table by seeing what row the temp falls in, indirectly lol
 		if (temp >= msq_temp_table[i] && temp < msq_temp_table[i + 1])
 		{
 			if		(i <= 9)	spectral_class.temperature_class = TC_M;
@@ -364,33 +412,27 @@ static SpectralClass get_spectral_class(double mass, double age, double surface_
 		}
 	}
 
-	return spectral_class;
+	fprintf(stderr, "get_standard_or_subdwarf_spectral_class failed\n");
+	exit(1); 
 }
 
-// Creates the luminosity class strictly for main-sequence stars, not subdwarfs
-static LuminosityClass get_luminosity_class(double mass, double age, double luminosity, StarType type)
+// Creates the spectral classification for Wolf-Rayet stars. 
+static SpectralClass get_wolf_rayet_spectral_class(double mass, double age, double surface_temp)
 {
-	const double msq_lifetime = get_msq_lifetime(mass);
-	const double msq_life_progress = age / msq_lifetime;
-	const double post_msq_life_progress = (age - msq_lifetime) / (get_total_lifetime(mass) - msq_lifetime);
+	SpectralClass spectral_class;
+	double life_progress = age / get_total_lifetime(mass);
 
-	if (type == ST_COOL_SUBDWARF)							return LC_SD; 
+	spectral_class.temperature_class = TC_UNASSIGNED;
+	spectral_class.luminosity_class = LC_UNASSIGNED;
 
-	// Main-sequence stars not in the post main-sequence are luminosity class V.
-	if (msq_life_progress < 1.00)							return LC_V;	
+	if		(life_progress < 0.80)	spectral_class.emission_class = WR_WN;
+	else if (life_progress < 0.95)	spectral_class.emission_class = WR_WC;
+	else							spectral_class.emission_class = WR_WO;
 
-	// Post-main-sequence class is approximated from mass, evolution stage, and luminosity.
-	if		(mass < 8.0 && post_msq_life_progress < 0.4)	return LC_IV;
-	else if (mass < 2.0)									return LC_III;
-	else if (mass < 8.0)									return LC_II;
-	else
-	{
-		if		(luminosity < 10000.0)						return LC_II;
-		else if (luminosity < 70000.0)						return LC_IB;
-		else if (luminosity < 300000.0)						return LC_IAB;
-		else if (luminosity < 1000000.0)					return LC_IA;
-		else												return LC_IA_PLUS;
-	}
+	// Uses equal intervals to give a temperature, 30,000 or lower being 11, and 200,000 or higher being a 1
+	spectral_class.grade = clamp_int((11 - (int)(((surface_temp - 30000.0) / (200000.0 - 30000.0)) * 10.0 + 0.5)), 1, 11);
+
+	return spectral_class;
 }
 
 // Takes the enum and creates an equivalent printable format
@@ -398,14 +440,13 @@ static char print_temperature_letter(TemperatureClassLetter letter)
 {
 	switch (letter)
 	{
-	case TC_M:	return 'M';
-	case TC_K:	return 'K';
-	case TC_G:	return 'G';
-	case TC_F:	return 'F';
-	case TC_A:	return 'A';
-	case TC_B:	return 'B';
-	case TC_O:	return 'O';
-	case TC_W:	return 'W';
+		case TC_M:	return 'M';
+		case TC_K:	return 'K';
+		case TC_G:	return 'G';
+		case TC_F:	return 'F';
+		case TC_A:	return 'A';
+		case TC_B:	return 'B';
+		case TC_O:	return 'O';
 	}
 
 	return '?';
@@ -430,17 +471,41 @@ static char* print_luminosity_class(LuminosityClass luminosity_class)
 	return "?";
 }
 
+// Takes the enum and creates an equivalent printable format
+static char* print_wolf_rayet_emission_class(WREmissions emission_class)
+{
+	switch (emission_class)
+	{
+		case WR_WN: return "WN";
+		case WR_WC: return "WC";
+		case WR_WO: return "WO";
+	}
+
+	return "?"; 
+}
+
+// Generates the star information for a standard star.
 static void generate_standard_star_information(Star* pStar)
 {
 	pStar->metallicity = generate_metallicity();
 	pStar->age = generate_age(pStar->mass, pStar->metallicity, pStar->type);
 	pStar->radius = get_radius(pStar->mass, pStar->metallicity, pStar->age);
 	pStar->surface_temp = get_surface_temp(pStar->mass, pStar->metallicity, pStar->age, pStar->radius);
+	
+	// Checks to see if where the star currently is, if its a candidate to become a Wolf-Rayet, if so pivot the generation towards Wolf-Rayet.
+	if (should_generate_wolf_rayet(pStar->mass, pStar->metallicity, pStar->age) == TRUE)
+	{
+		pStar->type = ST_WOLF_RAYET;
+		generate_wolf_rayet_information(pStar);
+		return;
+	}
+
 	pStar->luminosity = get_luminosity(pStar->radius, pStar->surface_temp);
 	pStar->density = get_density(pStar->mass, pStar->radius);
-	pStar->class = get_spectral_class(pStar->mass, pStar->age, pStar->surface_temp, pStar->luminosity, pStar->type);
+	pStar->class = get_standard_or_subdwarf_spectral_class(pStar->mass, pStar->age, pStar->surface_temp, pStar->luminosity, pStar->type);
 }
 
+// Generates the star information for a cool subdwarf
 static void generate_cool_subdwarf_information(Star* pStar)
 {
 	pStar->metallicity = generate_subdwarf_metallicity();
@@ -451,5 +516,19 @@ static void generate_cool_subdwarf_information(Star* pStar)
 	pStar->surface_temp = (int)(pStar->surface_temp * my_rand_double(1.02, 1.08) + 0.5);	// Applies cool_subdwarf surface temp modifier
 	pStar->luminosity = get_luminosity(pStar->radius, pStar->surface_temp);
 	pStar->density = get_density(pStar->mass, pStar->radius);
-	pStar->class = get_spectral_class(pStar->mass, pStar->age, pStar->surface_temp, pStar->luminosity, pStar->type);
+	pStar->class = get_standard_or_subdwarf_spectral_class(pStar->mass, pStar->age, pStar->surface_temp, pStar->luminosity, pStar->type); 
+}
+
+// Generates the star information for a Wolf-Rayet star
+static void generate_wolf_rayet_information(Star* pStar)
+{
+	const double progenitor_mass = pStar->mass;	// Store the original mass before WR mass loss so classification/life progress still use the progenitor mass, not the stripped Wolf-Rayet mass.
+	const double wr_progress = ((clamp(pStar->age / get_total_lifetime(progenitor_mass), 0.65, 1.0)) - 0.65) / 0.35;
+
+	pStar->mass *= (1.0 - (0.75 * wr_progress));																		// Loses up to 75% of its mass over its lifespan
+	pStar->radius *= (1.0 - (0.70 * wr_progress));																		// Loses up to 70% of its radius over its lifespan
+	pStar->surface_temp = (int)(clamp(pStar->surface_temp * (1.0 + (1.75 * wr_progress)), 30000.0, 200000.0) + 0.5);	// Increases by up to 175%, reaching 2.75x its starting temperature.
+	pStar->luminosity = get_luminosity(pStar->radius, pStar->surface_temp);
+	pStar->density = get_density(pStar->mass, pStar->radius);
+	pStar->class = get_wolf_rayet_spectral_class(progenitor_mass, pStar->age, pStar->surface_temp);
 }
