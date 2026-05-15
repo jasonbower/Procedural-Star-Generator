@@ -82,7 +82,7 @@ static const double msq_temp_table[] = {
 
 ///// STATIC HELPER FUNCTIONS /////
 static double generate_mass(void);
-static StarType should_generate_subdwarf(double mass);
+static StarType should_generate_cool_subdwarf(double mass);
 static double generate_subdwarf_metallicity(void);
 static double generate_age(double mass, double metallicity, StarType type);
 static double get_radius(double mass, double metallicity, double age);
@@ -91,6 +91,8 @@ static SpectralClass get_spectral_class(double mass, double age, double surface_
 static LuminosityClass get_luminosity_class(double mass, double age, double luminosity, StarType type);
 static char print_temperature_letter(TemperatureClassLetter letter);
 static char* print_luminosity_class(LuminosityClass luminosity_class);
+static void generate_standard_star_information(Star* pStar); 
+static void generate_cool_subdwarf_information(Star* pStar); 
 
 ///// INTERFACE FUNCTIONS /////
 
@@ -131,26 +133,23 @@ void star_generate_random(STAR hStar)
 	}
 
 	pStar->mass = generate_mass();
-	pStar->type = should_generate_subdwarf(pStar->mass);
+	pStar->type = should_generate_cool_subdwarf(pStar->mass);
 
-	if (pStar->type == ST_UNASSIGNED)	pStar->type = ST_STANDARD;
-
-	if (pStar->type == ST_COOL_SUBDWARF)	pStar->metallicity = generate_subdwarf_metallicity();
-	else									pStar->metallicity = generate_metallicity();
-
-	pStar->age = generate_age(pStar->mass, pStar->metallicity, pStar->type);
-	pStar->radius = get_radius(pStar->mass, pStar->metallicity, pStar->age);
-	pStar->surface_temp = get_surface_temp(pStar->mass, pStar->metallicity, pStar->age, pStar->radius);
-
-	if (pStar->type == ST_COOL_SUBDWARF)
+	switch (pStar->type)
 	{
-		pStar->radius *= my_rand_double(0.80, 0.90);
-		pStar->surface_temp = (int)(pStar->surface_temp * my_rand_double(1.02, 1.08) + 0.5);
+		case ST_COOL_SUBDWARF:
+			generate_cool_subdwarf_information(pStar);
+			break;
+		case ST_WOLF_RAYET:
+			/*generate_wolf_rayet_information(pStar);*/
+			break;
+		case ST_STANDARD:
+			generate_standard_star_information(pStar);
+			break;
+		default:
+			fprintf(stderr, "Error: star_generate_random failed\n");
+			exit(1);
 	}
-
-	pStar->luminosity = get_luminosity(pStar->radius, pStar->surface_temp);
-	pStar->density = get_density(pStar->mass, pStar->radius);
-	pStar->class = get_spectral_class(pStar->mass, pStar->age, pStar->surface_temp, pStar->luminosity, pStar->type);
 }
 
 void star_print_details(STAR hStar)
@@ -237,7 +236,7 @@ static double generate_mass(void)
 }
 
 // Subdwarfs are rare, old, metal-poor stars and are mostly limited to lower masses.
-static StarType should_generate_subdwarf(double mass)
+static StarType should_generate_cool_subdwarf(double mass)
 {
 	double chance;
 
@@ -248,7 +247,7 @@ static StarType should_generate_subdwarf(double mass)
 	else if (mass < 1.20)	chance = 0.1;
 	else					chance = 0.025;
 
-	return (my_rand_double(0.0, 100.0) < chance) ? ST_COOL_SUBDWARF : ST_UNASSIGNED;
+	return (my_rand_double(0.0, 100.0) < chance) ? ST_COOL_SUBDWARF : ST_STANDARD;
 }
 
 // Generate low metallicity Fe/H values for metal-poor subdwarf stars.
@@ -429,4 +428,28 @@ static char* print_luminosity_class(LuminosityClass luminosity_class)
 	}
 
 	return "?";
+}
+
+static void generate_standard_star_information(Star* pStar)
+{
+	pStar->metallicity = generate_metallicity();
+	pStar->age = generate_age(pStar->mass, pStar->metallicity, pStar->type);
+	pStar->radius = get_radius(pStar->mass, pStar->metallicity, pStar->age);
+	pStar->surface_temp = get_surface_temp(pStar->mass, pStar->metallicity, pStar->age, pStar->radius);
+	pStar->luminosity = get_luminosity(pStar->radius, pStar->surface_temp);
+	pStar->density = get_density(pStar->mass, pStar->radius);
+	pStar->class = get_spectral_class(pStar->mass, pStar->age, pStar->surface_temp, pStar->luminosity, pStar->type);
+}
+
+static void generate_cool_subdwarf_information(Star* pStar)
+{
+	pStar->metallicity = generate_subdwarf_metallicity();
+	pStar->age = generate_age(pStar->mass, pStar->metallicity, pStar->type);
+	pStar->radius = get_radius(pStar->mass, pStar->metallicity, pStar->age);
+	pStar->surface_temp = get_surface_temp(pStar->mass, pStar->metallicity, pStar->age, pStar->radius);
+	pStar->radius *= my_rand_double(0.80, 0.90);											// Applies cool_subdwarf radius modifier
+	pStar->surface_temp = (int)(pStar->surface_temp * my_rand_double(1.02, 1.08) + 0.5);	// Applies cool_subdwarf surface temp modifier
+	pStar->luminosity = get_luminosity(pStar->radius, pStar->surface_temp);
+	pStar->density = get_density(pStar->mass, pStar->radius);
+	pStar->class = get_spectral_class(pStar->mass, pStar->age, pStar->surface_temp, pStar->luminosity, pStar->type);
 }
