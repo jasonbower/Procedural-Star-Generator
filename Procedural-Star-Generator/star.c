@@ -105,7 +105,7 @@ STAR star_init_default(void)
 
 	if (pStar == NULL)
 	{
-		fprintf(stderr, "Error 1: program failed to allocate memory for Star object in star_init_default\n");
+		fprintf(stderr, "Error: program failed to allocate memory for Star object in star_init_default\n");
 		exit(1);
 	}
 
@@ -131,7 +131,7 @@ void star_generate_random(STAR hStar)
 
 	if (pStar == NULL)
 	{
-		fprintf(stderr, "Error 2: null parameter(s) passed through star_generate_random\n");
+		fprintf(stderr, "Error: null parameter(s) passed through star_generate_random\n");
 		exit(1);
 	}
 
@@ -147,7 +147,7 @@ void star_generate_random(STAR hStar)
 			generate_standard_star_information(pStar);
 			break;
 		default:
-			fprintf(stderr, "Error: invalid information passed through star_generate_random\n");
+			fprintf(stderr, "Error: star_generate_random failed\n");
 			exit(1);
 	}
 }
@@ -160,7 +160,7 @@ void star_print_details(STAR hStar)
 
 	if (pStar == NULL)
 	{
-		fprintf(stderr, "Error 3: null parameter(s) passed through star_print_details\n");
+		fprintf(stderr, "Error: null parameter(s) passed through star_print_details\n");
 		exit(1);
 	}
 
@@ -185,7 +185,7 @@ void star_print_details(STAR hStar)
 
 	if (density_str == NULL)
 	{
-		fprintf(stderr, "Error 9: null parameter(s) passed through star_print_details\n");
+		fprintf(stderr, "Error: null parameter(s) passed through star_print_details\n");
 		exit(1);
 	}
 
@@ -196,7 +196,7 @@ void star_print_details(STAR hStar)
 	if (luminosity_str == NULL)
 	{
 		free(density_str);
-		fprintf(stderr, "Error 10: null parameter(s) passed through star_print_details\n");
+		fprintf(stderr, "Error: null parameter(s) passed through star_print_details\n");
 		exit(1);
 	}
 
@@ -257,12 +257,10 @@ static StarType should_generate_cool_subdwarf(double mass)
 // Detemines if a star is a canidate to undergo a Wolf-Rayet phase at the end of its life. Probability increases with progenitor mass, life progress, and metallicity
 static Boolean should_generate_wolf_rayet(double mass, double metallicity, double age)
 {
-	double life_progress;
+	const double life_progress = age / get_total_lifetime(mass);
 	double chance;
 
 	if (mass < 20.0)	return FALSE;
-
-	life_progress = age / get_total_lifetime(mass);
 
 	// WR stars are modeled as a late-life phase, not an early main-sequence state.
 	if (life_progress < 0.65)	return FALSE;
@@ -283,7 +281,7 @@ static Boolean should_generate_wolf_rayet(double mass, double metallicity, doubl
 // Generate low metallicity Fe/H values for metal-poor subdwarf stars.
 static double generate_subdwarf_metallicity(void)
 {
-	double fe_h = my_rand_normal(-2.0, 0.45);
+	const double fe_h = my_rand_normal(-2.0, 0.45);
 
 	return clamp(fe_h, -7.0, -0.5);
 }
@@ -412,7 +410,7 @@ static SpectralClass get_standard_or_subdwarf_spectral_class(double mass, double
 		}
 	}
 
-	fprintf(stderr, "get_standard_or_subdwarf_spectral_class failed\n");
+	fprintf(stderr, "Error: get_standard_or_subdwarf_spectral_class failed\n");
 	exit(1); 
 }
 

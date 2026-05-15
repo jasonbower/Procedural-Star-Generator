@@ -40,7 +40,7 @@ char* decimal_to_sci_notation(double decimal)
 
 	if (str == NULL)
 	{
-		fprintf(stderr, "Error 4: program failed to allocate memory for string variable in decimal_to_sci_notation\n");
+		fprintf(stderr, "Error: program failed to allocate memory for string variable in decimal_to_sci_notation\n");
 		exit(1);
 	}
 
@@ -83,13 +83,13 @@ double my_log_interpolate(double x, const double* x_vals, const double* y_vals, 
 	// Validate table inputs.
 	if (x_vals == NULL || y_vals == NULL)
 	{
-		fprintf(stderr, "Error 5: null parameter(s) passed through my_log_interpolate\n");
+		fprintf(stderr, "Error: null parameter(s) passed through my_log_interpolate\n");
 		exit(1);
 	}
 
 	if (size < 2)
 	{
-		fprintf(stderr, "Error 6: illegal parameter(s) passed through my_log_interpolate\n");
+		fprintf(stderr, "Error: illegal parameter(s) passed through my_log_interpolate\n");
 		exit(1);
 	}
 
@@ -108,7 +108,7 @@ double my_log_interpolate(double x, const double* x_vals, const double* y_vals, 
 
 			if (x2 == x1)
 			{
-				fprintf(stderr, "Error 7: illegal parameter(s) passed through my_log_interpolate\n");
+				fprintf(stderr, "Error 2: illegal parameter(s) passed through my_log_interpolate\n");
 				exit(1);
 			}
 
@@ -121,7 +121,7 @@ double my_log_interpolate(double x, const double* x_vals, const double* y_vals, 
 		}
 	}
 
-	fprintf(stderr, "Error 8: my_log_interpolate failed\n");
+	fprintf(stderr, "Error: my_log_interpolate failed\n");
 	exit(1);
 }
 
@@ -133,13 +133,13 @@ void build_cumulative_table(const double* weights, double* cumulative, int size)
 
 	if (weights == NULL || cumulative == NULL)
 	{
-		fprintf(stderr, "Error 11: null parameter(s) passed through build_cumulative_table\n");
+		fprintf(stderr, "Error: null parameter(s) passed through build_cumulative_table\n");
 		exit(1);
 	}
 
 	if (size < 1)
 	{
-		fprintf(stderr, "Error 12: illegal parameter(s) passed through build_cumulative_table\n");
+		fprintf(stderr, "Error: illegal parameter(s) passed through build_cumulative_table\n");
 		exit(1);
 	}
 
