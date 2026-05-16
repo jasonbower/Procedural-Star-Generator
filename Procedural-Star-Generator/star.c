@@ -135,8 +135,7 @@ void star_generate_random(STAR hStar)
 		exit(1);
 	}
 
-	// pStar->mass = generate_mass();
-	pStar->mass = my_rand_double_bias(20.0, 200.0, 1.2); 
+	pStar->mass = generate_mass();
 	pStar->type = should_generate_cool_subdwarf(pStar->mass);
 
 	switch (pStar->type)
