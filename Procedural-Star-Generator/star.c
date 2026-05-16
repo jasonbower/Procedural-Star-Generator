@@ -135,7 +135,8 @@ void star_generate_random(STAR hStar)
 		exit(1);
 	}
 
-	pStar->mass = generate_mass();
+	// pStar->mass = generate_mass();
+	pStar->mass = my_rand_double_bias(20.0, 200.0, 1.2); 
 	pStar->type = should_generate_cool_subdwarf(pStar->mass);
 
 	switch (pStar->type)
@@ -265,10 +266,10 @@ static Boolean should_generate_wolf_rayet(double mass, double metallicity, doubl
 	// WR stars are modeled as a late-life phase, not an early main-sequence state.
 	if (life_progress < 0.65)	return FALSE;
 
-	if		(mass < 30.0)	chance = 2.5;
-	else if (mass < 60.0)	chance = 12.5;
-	else if (mass < 100.0)	chance = 30.0;
-	else					chance = 50.0;
+	if		(mass < 30.0)	chance = 2.0;
+	else if (mass < 60.0)	chance = 10.0;
+	else if (mass < 100.0)	chance = 20.0;
+	else					chance = 40.0;
 
 	// Higher metallicity strengthens stellar winds, making WR formation more likely.
 	chance *= clamp(1.0 + 0.25 * metallicity, 0.5, 1.5);
@@ -423,12 +424,14 @@ static SpectralClass get_wolf_rayet_spectral_class(double mass, double age, doub
 	spectral_class.temperature_class = TC_UNASSIGNED;
 	spectral_class.luminosity_class = LC_UNASSIGNED;
 
-	if		(life_progress < 0.80)	spectral_class.emission_class = WR_WN;
-	else if (life_progress < 0.95)	spectral_class.emission_class = WR_WC;
-	else							spectral_class.emission_class = WR_WO;
+	if		(life_progress < 0.80 && mass >= 50.0 && surface_temp >= 70000)	spectral_class.emission_class = WR_WN;
+	else if (life_progress < 0.95 || surface_temp < 100000)					spectral_class.emission_class = WR_WC;
+	else																	spectral_class.emission_class = WR_WO;
 
 	// Uses equal intervals to give a temperature, 30,000 or lower being 11, and 200,000 or higher being a 1
 	spectral_class.grade = clamp_int((11 - (int)(((surface_temp - 30000.0) / (200000.0 - 30000.0)) * 10.0 + 0.5)), 1, 11);
+
+	if (spectral_class.emission_class == WR_WO)	spectral_class.grade = clamp_int(spectral_class.grade, 1, 6);
 
 	return spectral_class;
 }
@@ -523,8 +526,9 @@ static void generate_wolf_rayet_information(Star* pStar)
 	const double progenitor_mass = pStar->mass;	// Store the original mass before WR mass loss so classification/life progress still use the progenitor mass, not the stripped Wolf-Rayet mass.
 	const double wr_progress = ((clamp(pStar->age / get_total_lifetime(progenitor_mass), 0.65, 1.0)) - 0.65) / 0.35;
 
-	pStar->mass *= (1.0 - (0.75 * wr_progress));																		// Loses up to 75% of its mass over its lifespan
-	pStar->radius *= (1.0 - (0.70 * wr_progress));																		// Loses up to 70% of its radius over its lifespan
+	pStar->mass *= (1.0 - (1.0/2.0 * wr_progress));																		// Gradually strips mass as the star evolves through the WR phase.
+	// Rebuilds a compact WR radius while allowing rare massive WN stars to remain large.
+	pStar->radius = clamp(((4.0 + 0.18 * pStar->mass + my_rand_normal(0.0, 3.0)) * (1.0 - 0.35 * wr_progress)), 1.5, (25.0 + 0.10 * progenitor_mass));
 	pStar->surface_temp = (int)(clamp(pStar->surface_temp * (1.0 + (1.75 * wr_progress)), 30000.0, 200000.0) + 0.5);	// Increases by up to 175%, reaching 2.75x its starting temperature.
 	pStar->luminosity = get_luminosity(pStar->radius, pStar->surface_temp);
 	pStar->density = get_density(pStar->mass, pStar->radius);
