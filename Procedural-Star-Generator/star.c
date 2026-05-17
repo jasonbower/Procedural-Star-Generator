@@ -17,20 +17,20 @@ typedef enum luminosity_class
 	LC_UNASSIGNED, LC_SD, LC_V, LC_IV, LC_III, LC_II, LC_IB, LC_IAB, LC_IA, LC_IA_PLUS
 } LuminosityClass;
 
-typedef enum wolf_rayet_emissions
+typedef enum wolf_rayet_emissions_class
 {
 	WRE_UNASSIGNED, WR_WN, WR_WC, WR_WO
-} WREmissions;
+} WolfRayetEmissionClass;
 
 typedef enum star_type
 {
 	ST_UNASSIGNED, ST_STANDARD, ST_COOL_SUBDWARF, ST_WOLF_RAYET, ST_HOT_SUBDWARF, ST_WHITE_DWARF, ST_NEUTRON_STAR, ST_BLACK_HOLE
 } StarType;
 
-typedef enum atmospheric_composition
+typedef enum white_dwarf_atmosphere
 {
 	AC_UNASSIGNED, AC_DA, AC_DB, AC_DO, AC_DQ, AC_DZ, AC_DC
-} AtmosphericComposition;
+} WhiteDwarfAtmosphere;
 
 typedef enum neutron_star_type
 {
@@ -40,8 +40,8 @@ typedef enum neutron_star_type
 typedef struct spectral_class
 {
 	TemperatureClassLetter temperature_class;
-	WREmissions emission_class;
-	AtmosphericComposition atmospheric_comp; 
+	WolfRayetEmissionClass emission_class;
+	WhiteDwarfAtmosphere atmosphere;
 	int grade;
 	LuminosityClass luminosity_class;
 	NeutronStarType neutron_star_type;
@@ -105,7 +105,7 @@ static SpectralClass get_standard_or_subdwarf_spectral_class(double mass, double
 static SpectralClass get_wolf_rayet_spectral_class(double mass, double age, double surface_temp); 
 static char print_temperature_letter(TemperatureClassLetter letter);
 static char* print_luminosity_class(LuminosityClass luminosity_class);
-static char* print_wolf_rayet_emission_class(WREmissions emission_class); 
+static char* print_wolf_rayet_emission_class(WolfRayetEmissionClass emission_class);
 static void generate_standard_star_information(Star* pStar); 
 static void generate_cool_subdwarf_information(Star* pStar); 
 static void generate_wolf_rayet_information(Star* pStar); 
@@ -141,6 +141,8 @@ STAR star_init_default(void)
 void star_generate_random(STAR hStar)
 {
 	Star* pStar = (Star*)hStar;
+	Boolean is_remnant = FALSE; 
+	Boolean is_hot_subdwarf = FALSE; 
 
 	if (pStar == NULL)
 	{
@@ -148,8 +150,12 @@ void star_generate_random(STAR hStar)
 		exit(1);
 	}
 
+	if (my_rand_double(0.0, 100.0) < 8.0)	is_remnant = TRUE; 
+
 	pStar->mass = generate_mass();
 	pStar->type = should_generate_cool_subdwarf(pStar->mass);
+
+	if (pStar->type == ST_UNASSIGNED)	pStar->type = ST_STANDARD;
 
 	switch (pStar->type)
 	{
@@ -162,6 +168,16 @@ void star_generate_random(STAR hStar)
 		default:
 			fprintf(stderr, "Error: star_generate_random failed\n");
 			exit(1);
+	}
+
+	if (is_remnant == TRUE)
+	{
+		if (my_rand_double(0.0, 100.0) < 2.0)	is_hot_subdwarf = TRUE; 
+
+		if		(is_hot_subdwarf == TRUE && pStar->mass < 8.0)	generate_hot_subdwarf_information(pStar);
+		else if (pStar->mass < 8.0)								generate_white_dwarf_information(pStar);
+		else if (pStar->mass >= 8.0 && pStar->mass < 20.0)		generate_neutron_star_information(pStar);
+		else if (pStar->mass >= 20.0)							generate_black_hole_information(pStar); 
 	}
 }
 
@@ -485,7 +501,7 @@ static char* print_luminosity_class(LuminosityClass luminosity_class)
 }
 
 // Takes the enum and creates an equivalent printable format
-static char* print_wolf_rayet_emission_class(WREmissions emission_class)
+static char* print_wolf_rayet_emission_class(WolfRayetEmissionClass emission_class)
 {
 	switch (emission_class)
 	{
