@@ -24,15 +24,27 @@ typedef enum wolf_rayet_emissions
 
 typedef enum star_type
 {
-	ST_UNASSIGNED, ST_STANDARD, ST_COOL_SUBDWARF, ST_WOLF_RAYET
+	ST_UNASSIGNED, ST_STANDARD, ST_COOL_SUBDWARF, ST_WOLF_RAYET, ST_HOT_SUBDWARF, ST_WHITE_DWARF, ST_NEUTRON_STAR, ST_BLACK_HOLE
 } StarType;
+
+typedef enum atmospheric_composition
+{
+	AC_UNASSIGNED, AC_DA, AC_DB, AC_DO, AC_DQ, AC_DZ, AC_DC
+} AtmosphericComposition;
+
+typedef enum neutron_star_type
+{
+	NST_UNASSIGNED, NST_ISOLATED, NST_PULSAR, NST_MAGNETAR
+} NeutronStarType;
 
 typedef struct spectral_class
 {
 	TemperatureClassLetter temperature_class;
 	WREmissions emission_class;
+	AtmosphericComposition atmospheric_comp; 
 	int grade;
 	LuminosityClass luminosity_class;
+	NeutronStarType neutron_star_type;
 } SpectralClass;
 
 typedef struct star // KNOWN TYPE
@@ -46,6 +58,7 @@ typedef struct star // KNOWN TYPE
 	double density;
 	SpectralClass class;
 	StarType type; 
+	Boolean black_hole_is_active; 
 } Star;
 
 static const double msq_mass_table[] =
