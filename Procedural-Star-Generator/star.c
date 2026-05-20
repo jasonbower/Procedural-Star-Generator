@@ -140,9 +140,15 @@ STAR star_init_default(void)
 	pStar->density = 0.0;
 	pStar->class.temperature_class = TC_UNASSIGNED;
 	pStar->class.emission_class = WRE_UNASSIGNED;
+	pStar->class.atmosphere = AC_UNASSIGNED; 
 	pStar->class.grade = -1;
 	pStar->class.luminosity_class = LC_UNASSIGNED;
+	pStar->class.neutron_star_type = NST_UNASSIGNED; 
 	pStar->type = ST_UNASSIGNED; 
+	pStar->black_hole_is_active = FALSE; 
+
+
+	NeutronStarType neutron_star_type;
 
 	return pStar;
 }
@@ -151,7 +157,6 @@ void star_generate_random(STAR hStar)
 {
 	Star* pStar = (Star*)hStar;
 	Boolean is_remnant = FALSE; 
-	Boolean is_hot_subdwarf = FALSE; 
 
 	if (pStar == NULL)
 	{
@@ -193,8 +198,8 @@ void star_generate_random(STAR hStar)
 void star_print_details(STAR hStar)
 {
 	Star* pStar = (Star*)hStar;
-	const double radius_km = pStar->radius * 695700.0;
-	const double radius_earth = radius_km / 6371.0;
+	double radius_km;
+	double radius_earth;
 	char* density_str;
 	char* luminosity_str;
 
@@ -203,6 +208,9 @@ void star_print_details(STAR hStar)
 		fprintf(stderr, "Error: null parameter(s) passed through star_print_details\n");
 		exit(1);
 	}
+
+	radius_km = pStar->radius * 695700.0;
+	radius_earth = radius_km / 6371.0;
 
 	if (pStar->class.luminosity_class == LC_SD)
 		printf("\tSpectral classification: %s%c%d\n",
@@ -438,9 +446,9 @@ static SpectralClass get_standard_or_subdwarf_spectral_class(double mass, double
 	spectral_class.atmosphere = AC_UNASSIGNED; 
 	spectral_class.neutron_star_type = NST_UNASSIGNED;
 	
-	// Creates the luminosity class for standard, and cool subdwarf stars and in the future hot subdwarfs. 
-	if		(type == ST_COOL_SUBDWARF && msq_life_progress < 1.00)	
-															spectral_class.luminosity_class = LC_SD;
+	// Creates the luminosity class for subdwarf stars. 
+	if (type == ST_HOT_SUBDWARF || (type == ST_COOL_SUBDWARF && msq_life_progress < 1.00))	spectral_class.luminosity_class = LC_SD;
+
 	// Main-sequence stars not in the post main-sequence are luminosity class V.
 	else if (msq_life_progress < 1.00)						spectral_class.luminosity_class = LC_V;
 	// Post-main-sequence class is approximated from mass, evolution stage, and luminosity.
@@ -689,9 +697,11 @@ static void generate_hot_subdwarf_information(Star* pStar)
 static void generate_white_dwarf_information(Star* pStar)
 {
 	const double progenitor_mass = pStar->mass;
+	const double progenitor_lifetime = get_total_lifetime(progenitor_mass);
 
 	pStar->type = ST_WHITE_DWARF;
 	pStar->mass = clamp(((0.125 * progenitor_mass + 0.40) * my_rand_double(0.96, 1.04)), 0.05, 1.44);
+	pStar->age = my_rand_double(0.001, clamp(13.8 - progenitor_lifetime, 0.0, 13.8));
 	// White dwarf radius shrinks as mass increases, approaching zero near the Chandrasekhar limit (1.44 Solar Masses).
 	pStar->radius = clamp((0.012 * sqrt(pow(1.44 / pStar->mass, 2.0 / 3.0) - pow(pStar->mass / 1.44, 2.0 / 3.0))), 0.003, 0.035);
 	pStar->luminosity = clamp(0.1 / pow(pStar->age + 0.01, 5.0 / 7.0), 0.00001, 100.0);	// White dwarf luminosity decreases over time using a simplified Mestel cooling law approximation.
