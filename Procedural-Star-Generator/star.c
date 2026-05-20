@@ -102,15 +102,18 @@ static double generate_subdwarf_metallicity(void);
 static double generate_age(double mass, double metallicity, StarType type);
 static double get_radius(double mass, double metallicity, double age);
 static int get_surface_temp(double mass, double metallicity, double age, double radius);
-static SpectralClass get_standard_or_subdwarf_spectral_class(double mass, double age, double surface_temp, double luminosity, StarType type); 
-static SpectralClass get_wolf_rayet_spectral_class(double mass, double age, double surface_temp); 
+static SpectralClass get_standard_or_subdwarf_spectral_class(double mass, double age, int surface_temp, double luminosity, StarType type);
+static SpectralClass get_wolf_rayet_spectral_class(double mass, double age, int surface_temp);
+static SpectralClass get_white_dwarf_spectral_class(int surface_temp, double age);
 static char print_temperature_letter(TemperatureClassLetter letter);
 static char* print_luminosity_class(LuminosityClass luminosity_class);
 static char* print_wolf_rayet_emission_class(WolfRayetEmissionClass emission_class);
+static char* print_white_dwarf_atmospheric_composition(WhiteDwarfAtmosphere atmosphere); 
 static void generate_standard_star_information(Star* pStar); 
 static void generate_cool_subdwarf_information(Star* pStar); 
 static void generate_wolf_rayet_information(Star* pStar); 
 static void generate_hot_subdwarf_information(Star* pStar); 
+static void generate_white_dwarf_information(Star* pStar); 
 
 ///// INTERFACE FUNCTIONS /////
 
@@ -203,6 +206,10 @@ void star_print_details(STAR hStar)
 	else if (pStar->type == ST_WOLF_RAYET)
 		printf("\tSpectral classification: %s%d\n",
 			print_wolf_rayet_emission_class(pStar->class.emission_class),
+			pStar->class.grade);
+	else if (pStar->type == ST_WHITE_DWARF)
+		printf("\tSpectral classification: %s%d\n",
+			print_white_dwarf_atmospheric_composition(pStar->class.atmosphere),
 			pStar->class.grade);
 	else
 		printf("\tSpectral classification: %c%d%s\n",
@@ -404,16 +411,18 @@ static int get_surface_temp(double mass, double metallicity, double age, double 
 }
 
 // Creates the spectral classification for standard stars or subdwarfs. 
-static SpectralClass get_standard_or_subdwarf_spectral_class(double mass, double age, double surface_temp, double luminosity, StarType type)
+static SpectralClass get_standard_or_subdwarf_spectral_class(double mass, double age, int surface_temp, double luminosity, StarType type)
 {
 	SpectralClass spectral_class;
-	const double temp = clamp(surface_temp, 2380.0, 60999.999);
+	const double temp = clamp(surface_temp, 2380, 60999);
 	const double msq_lifetime = get_msq_lifetime(mass);
 	const double msq_life_progress = age / msq_lifetime;
 	const double post_msq_life_progress = (age - msq_lifetime) / (get_total_lifetime(mass) - msq_lifetime);
 	int i;
 
 	spectral_class.emission_class = WRE_UNASSIGNED;
+	spectral_class.atmosphere = AC_UNASSIGNED; 
+	spectral_class.neutron_star_type = NST_UNASSIGNED;
 	
 	// Creates the luminosity class for standard, and cool subdwarf stars and in the future hot subdwarfs. 
 	if		(type == ST_COOL_SUBDWARF && msq_life_progress < 1.00)	
@@ -454,22 +463,48 @@ static SpectralClass get_standard_or_subdwarf_spectral_class(double mass, double
 }
 
 // Creates the spectral classification for Wolf-Rayet stars. 
-static SpectralClass get_wolf_rayet_spectral_class(double mass, double age, double surface_temp)
+static SpectralClass get_wolf_rayet_spectral_class(double mass, double age, int surface_temp)
 {
 	SpectralClass spectral_class;
 	double life_progress = age / get_total_lifetime(mass);
 
 	spectral_class.temperature_class = TC_UNASSIGNED;
+	spectral_class.atmosphere = AC_UNASSIGNED;
 	spectral_class.luminosity_class = LC_UNASSIGNED;
+	spectral_class.neutron_star_type = NST_UNASSIGNED;
 
 	if		(life_progress < 0.80 && mass >= 50.0 && surface_temp >= 70000)	spectral_class.emission_class = WR_WN;
 	else if (life_progress < 0.95 || surface_temp < 100000)					spectral_class.emission_class = WR_WC;
 	else																	spectral_class.emission_class = WR_WO;
 
 	// Uses equal intervals to give a temperature, 30,000 or lower being 11, and 200,000 or higher being a 1
-	spectral_class.grade = clamp_int((11 - (int)(((surface_temp - 30000.0) / (200000.0 - 30000.0)) * 10.0 + 0.5)), 1, 11);
+	spectral_class.grade = clamp_int((11 - (int)(((surface_temp - 30000) / (200000.0 - 30000.0)) * 10.0 + 0.5)), 1, 11);
 
 	if (spectral_class.emission_class == WR_WO)	spectral_class.grade = clamp_int(spectral_class.grade, 1, 6);
+
+	return spectral_class;
+}
+
+// Creates the spectral classification for white dwarfs. 
+static SpectralClass get_white_dwarf_spectral_class(int surface_temp, double age)
+{
+	SpectralClass spectral_class;
+	double roll = my_rand_double(0.0, 100.0);
+
+	spectral_class.temperature_class = TC_UNASSIGNED;
+	spectral_class.emission_class = WRE_UNASSIGNED;
+	spectral_class.luminosity_class = LC_UNASSIGNED;
+	spectral_class.neutron_star_type = NST_UNASSIGNED;
+
+	// Not hard science here, reasonable approximations
+	if		(surface_temp >= 45000 && roll < 60.0)	spectral_class.atmosphere = AC_DO;
+	else if (roll < 75.0)							spectral_class.atmosphere = AC_DA;
+	else if (roll < 87.0)							spectral_class.atmosphere = AC_DB;
+	else if (surface_temp < 12000 && roll < 93.0)	spectral_class.atmosphere = AC_DQ;
+	else if (surface_temp < 10000 && roll < 97.0)	spectral_class.atmosphere = AC_DZ;
+	else											spectral_class.atmosphere = AC_DC;
+
+	spectral_class.grade = clamp_int((int)(50400.0 / surface_temp + 0.5), 1, 9);
 
 	return spectral_class;
 }
@@ -518,6 +553,21 @@ static char* print_wolf_rayet_emission_class(WolfRayetEmissionClass emission_cla
 		case WR_WN: return "WN";
 		case WR_WC: return "WC";
 		case WR_WO: return "WO";
+	}
+
+	return "?"; 
+}
+
+static char* print_white_dwarf_atmospheric_composition(WhiteDwarfAtmosphere atmosphere)
+{
+	switch (atmosphere)
+	{
+		case AC_DA: return "DA"; 
+		case AC_DB: return "DB";
+		case AC_DO: return "DO";
+		case AC_DQ: return "DQ";
+		case AC_DZ: return "DZ";
+		case AC_DC: return "DC";
 	}
 
 	return "?"; 
@@ -589,4 +639,20 @@ static void generate_hot_subdwarf_information(Star* pStar)
 	pStar->luminosity = get_luminosity(pStar->radius, pStar->surface_temp);
 	pStar->density = get_density(pStar->mass, pStar->radius);
 	pStar->class = get_standard_or_subdwarf_spectral_class(pStar->mass, pStar->age, pStar->surface_temp, pStar->luminosity, pStar->type);
+}
+
+// Generates the star informatiom for a white dwarf
+static void generate_white_dwarf_information(Star* pStar)
+{
+	const double progenitor_mass = pStar->mass;
+
+	pStar->type = ST_WHITE_DWARF;
+	pStar->mass = clamp(((0.125 * progenitor_mass + 0.40) * my_rand_double(0.96, 1.04)), 0.05, 1.44);
+	// White dwarf radius shrinks as mass increases, approaching zero near the Chandrasekhar limit (1.44 Solar Masses).
+	pStar->radius = clamp((0.012 * sqrt(pow(1.44 / pStar->mass, 2.0 / 3.0) - pow(pStar->mass / 1.44, 2.0 / 3.0))), 0.003, 0.035);
+	pStar->luminosity = clamp(0.1 / pow(pStar->age + 0.01, 5.0 / 7.0), 0.00001, 100.0);	// White dwarf luminosity decreases over time using a simplified Mestel cooling law approximation.
+	// Uses the Stefan-Boltzmann law to derive surface temperature from luminosity and radius.
+	pStar->surface_temp = (int)(clamp((5778.0 * pow(pStar->luminosity / (pStar->radius * pStar->radius), 0.25)), 3000.0, 150000.0) + 0.5);
+	pStar->density = get_density(pStar->mass, pStar->radius);
+	pStar->class = get_white_dwarf_spectral_class(pStar->surface_temp, pStar->age);
 }
