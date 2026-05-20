@@ -189,6 +189,8 @@ void star_generate_random(STAR hStar)
 void star_print_details(STAR hStar)
 {
 	Star* pStar = (Star*)hStar;
+	const double radius_km = pStar->radius * 695700.0;
+	const double radius_earth = radius_km / 6371.0;
 	char* density_str;
 	char* luminosity_str;
 
@@ -218,7 +220,11 @@ void star_print_details(STAR hStar)
 			print_luminosity_class(pStar->class.luminosity_class));
 
 	printf("\tMass of star: %.3f (Solar masses)\n", pStar->mass);
-	printf("\tRadius of star: %.2f (Solar radiuses)\n", pStar->radius);
+
+	if		(radius_km < 1000.0)	printf("\tRadius of star: %.0f (km)\n", radius_km);
+	else if (radius_earth < 8.0)	printf("\tRadius of star: %.2f (Earth radii)\n", radius_earth);
+	else							printf("\tRadius of star: %.2f (Solar radii)\n", pStar->radius);
+
 	density_str = decimal_to_sci_notation(pStar->density);
 
 	if (density_str == NULL)
