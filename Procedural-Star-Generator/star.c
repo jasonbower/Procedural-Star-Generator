@@ -117,7 +117,7 @@ static void generate_wolf_rayet_information(Star* pStar);
 static void generate_hot_subdwarf_information(Star* pStar); 
 static void generate_white_dwarf_information(Star* pStar); 
 static void generate_neutron_star_information(Star* pStar); 
-
+static void generate_black_hole_information(Star* pStar); 
 
 ///// INTERFACE FUNCTIONS /////
 
@@ -218,7 +218,9 @@ void star_print_details(STAR hStar)
 			print_white_dwarf_atmospheric_composition(pStar->class.atmosphere),
 			pStar->class.grade);
 	else if (pStar->type == ST_NEUTRON_STAR)
-		printf("\tSpectral classification: %s\n", print_neutron_star_type(pStar->class.neutron_star_type)); 
+		printf("\tSpectral classification: %s\n", print_neutron_star_type(pStar->class.neutron_star_type));
+	else if (pStar->type == ST_BLACK_HOLE)
+		printf("\tSpectral classification: Stellar-Mass Black Hole\n");
 	else
 		printf("\tSpectral classification: %c%d%s\n",
 			print_temperature_letter(pStar->class.temperature_class),
@@ -712,4 +714,26 @@ static void generate_neutron_star_information(Star* pStar)
 	pStar->luminosity = get_luminosity(pStar->radius, pStar->surface_temp);
 	pStar->density = get_density(pStar->mass, pStar->radius);
 	pStar->class = get_neutron_star_spectral_class(pStar->age);
+}
+
+static void generate_black_hole_information(Star* pStar)
+{
+	const double progenitor_mass = pStar->mass;
+
+	pStar->type = ST_BLACK_HOLE;
+	// Scales black hole mass from progenitor mass, keeping it above the neutron-star/TOV boundary.
+	pStar->mass = clamp(((0.15 * progenitor_mass + 2.30) * my_rand_double(0.90, 1.10)), 2.30, 40.0);
+	pStar->radius = (2.95 * pStar->mass) / 695700.0;	// Schwarzschild radius: about 2.95 km per solar mass, converted to solar radii for storage.
+	pStar->surface_temp = 0;
+	pStar->density = get_density(pStar->mass, pStar->radius);	// Average enclosed density using Schwarzschild radius.
+	pStar->class.temperature_class = TC_UNASSIGNED;
+	pStar->class.emission_class = WRE_UNASSIGNED;
+	pStar->class.atmosphere = AC_UNASSIGNED;
+	pStar->class.grade = -1;
+	pStar->class.luminosity_class = LC_UNASSIGNED;
+	pStar->class.neutron_star_type = NST_UNASSIGNED;
+	pStar->black_hole_is_active = (my_rand_double(0.0, 100.0) < 5.0) ? TRUE : FALSE;
+
+	if (pStar->black_hole_is_active == TRUE)	pStar->luminosity = pow(10.0, my_rand_double(-4.0, 6.0));
+	else										pStar->luminosity = 0.0;
 }
