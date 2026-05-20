@@ -97,6 +97,7 @@ static const double msq_temp_table[] = {
 static double generate_mass(void);
 static StarType should_generate_cool_subdwarf(double mass);
 static Boolean should_generate_wolf_rayet(double mass, double metallicity, double age); 
+static Boolean should_generate_hot_subdwarf(double age); 
 static double generate_subdwarf_metallicity(void);
 static double generate_age(double mass, double metallicity, StarType type);
 static double get_radius(double mass, double metallicity, double age);
@@ -109,6 +110,7 @@ static char* print_wolf_rayet_emission_class(WolfRayetEmissionClass emission_cla
 static void generate_standard_star_information(Star* pStar); 
 static void generate_cool_subdwarf_information(Star* pStar); 
 static void generate_wolf_rayet_information(Star* pStar); 
+static void generate_hot_subdwarf_information(Star* pStar); 
 
 ///// INTERFACE FUNCTIONS /////
 
@@ -172,12 +174,12 @@ void star_generate_random(STAR hStar)
 
 	if (is_remnant == TRUE)
 	{
-		if (my_rand_double(0.0, 100.0) < 2.0)	is_hot_subdwarf = TRUE; 
+		pStar->age = my_rand_double(0.0, clamp(13.8 - get_total_lifetime(pStar->mass), 0.0, 13.8));	// Random remnant age based on how long ago the progenitor star could have died.
 
-		if		(is_hot_subdwarf == TRUE && pStar->mass < 8.0)	generate_hot_subdwarf_information(pStar);
-		else if (pStar->mass < 8.0)								generate_white_dwarf_information(pStar);
-		else if (pStar->mass >= 8.0 && pStar->mass < 20.0)		generate_neutron_star_information(pStar);
-		else if (pStar->mass >= 20.0)							generate_black_hole_information(pStar); 
+		if		(pStar->mass < 8.0 && should_generate_hot_subdwarf(pStar->age) == TRUE)	generate_hot_subdwarf_information(pStar); 
+		else if (pStar->mass < 8.0)														generate_white_dwarf_information(pStar);
+		else if (pStar->mass >= 8.0 && pStar->mass < 20.0)								generate_neutron_star_information(pStar);
+		else if (pStar->mass >= 20.0)													generate_black_hole_information(pStar); 
 	}
 }
 
@@ -268,7 +270,7 @@ static double generate_mass(void)
 	return my_log_interpolate(roll, prob_table, generation_mass_table, SIZE(weights));
 }
 
-// Subdwarfs are rare, old, metal-poor stars and are mostly limited to lower masses.
+// Determines if a star should be a cool subdwarf, probability increases with mass.
 static StarType should_generate_cool_subdwarf(double mass)
 {
 	double chance;
@@ -283,7 +285,7 @@ static StarType should_generate_cool_subdwarf(double mass)
 	return (my_rand_double(0.0, 100.0) < chance) ? ST_COOL_SUBDWARF : ST_STANDARD;
 }
 
-// Detemines if a star is a canidate to undergo a Wolf-Rayet phase at the end of its life. Probability increases with progenitor mass, life progress, and metallicity
+// Detemines if a star should undergo a Wolf-Rayet phase at the end of its life, probability increases with progenitor mass, life progress, and metallicity.
 static Boolean should_generate_wolf_rayet(double mass, double metallicity, double age)
 {
 	const double life_progress = age / get_total_lifetime(mass);
@@ -305,6 +307,14 @@ static Boolean should_generate_wolf_rayet(double mass, double metallicity, doubl
 	if (life_progress > 0.85)	chance *= 1.5;
 
 	return (my_rand_double(0.0, 100.0) < chance) ? TRUE : FALSE;
+}
+
+// Determines if a star should undergo a hot subdwarf phase, this phase is rare and unlikely
+static Boolean should_generate_hot_subdwarf(double age)
+{
+	if (age > 0.10)	return FALSE;	// Hot subdwarf phase only allowed within 100 Myr after progenitor death.
+
+	return (my_rand_double(0.0, 100.0) < 2.0) ? TRUE : FALSE;
 }
 
 // Generate low metallicity Fe/H values for metal-poor subdwarf stars.
@@ -561,4 +571,22 @@ static void generate_wolf_rayet_information(Star* pStar)
 	pStar->luminosity = get_luminosity(pStar->radius, pStar->surface_temp);
 	pStar->density = get_density(pStar->mass, pStar->radius);
 	pStar->class = get_wolf_rayet_spectral_class(progenitor_mass, pStar->age, pStar->surface_temp);
+}
+
+// Generates the star information for a hot subdwarf
+static void generate_hot_subdwarf_information(Star* pStar)
+{
+	const double progenitor_mass = pStar->mass;	// Store the original mass of the star before it gets modified
+	double start_temp;
+
+	pStar->type = ST_HOT_SUBDWARF;
+	// Scales hot subdwarf mass from progenitor mass, with slight random variation.
+	pStar->mass = clamp(((0.079 + ((progenitor_mass - 0.079) / (8.0 - 0.079)) * (1.2 - 0.079)) * my_rand_double(0.90, 1.10)), 0.079, 1.2);
+	pStar->radius = 0.10 + ((pStar->mass - 0.079) / (1.2 - 0.079)) * (0.35 - 0.10);	// Scales hot subdwarf radius from its final mass, with slight random variation.
+	start_temp = 20000.0 + clamp((pStar->mass - 0.079) / (1.2 - 0.079), 0.0, 1.0) * (100000.0 - 20000.0);	// Sets the starting temperature for a hot subdwarf. 
+	// Hot subdwarfs start extremely hot at young remnant age, then cool sharply as age increases.
+	pStar->surface_temp = (int)(20000.0 + (start_temp - 20000.0) * (1.0 - clamp(pStar->age / 0.10, 0.0, 1.0)) + 0.5);
+	pStar->luminosity = get_luminosity(pStar->radius, pStar->surface_temp);
+	pStar->density = get_density(pStar->mass, pStar->radius);
+	pStar->class = get_standard_or_subdwarf_spectral_class(pStar->mass, pStar->age, pStar->surface_temp, pStar->luminosity, pStar->type);
 }
