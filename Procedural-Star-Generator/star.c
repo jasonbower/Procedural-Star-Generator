@@ -105,15 +105,19 @@ static int get_surface_temp(double mass, double metallicity, double age, double 
 static SpectralClass get_standard_or_subdwarf_spectral_class(double mass, double age, int surface_temp, double luminosity, StarType type);
 static SpectralClass get_wolf_rayet_spectral_class(double mass, double age, int surface_temp);
 static SpectralClass get_white_dwarf_spectral_class(int surface_temp, double age);
+static SpectralClass get_neutron_star_spectral_class(double age); 
 static char print_temperature_letter(TemperatureClassLetter letter);
 static char* print_luminosity_class(LuminosityClass luminosity_class);
 static char* print_wolf_rayet_emission_class(WolfRayetEmissionClass emission_class);
 static char* print_white_dwarf_atmospheric_composition(WhiteDwarfAtmosphere atmosphere); 
+static char* print_neutron_star_type(NeutronStarType type); 
 static void generate_standard_star_information(Star* pStar); 
 static void generate_cool_subdwarf_information(Star* pStar); 
 static void generate_wolf_rayet_information(Star* pStar); 
 static void generate_hot_subdwarf_information(Star* pStar); 
 static void generate_white_dwarf_information(Star* pStar); 
+static void generate_neutron_star_information(Star* pStar); 
+
 
 ///// INTERFACE FUNCTIONS /////
 
@@ -213,6 +217,8 @@ void star_print_details(STAR hStar)
 		printf("\tSpectral classification: %s%d\n",
 			print_white_dwarf_atmospheric_composition(pStar->class.atmosphere),
 			pStar->class.grade);
+	else if (pStar->type == ST_NEUTRON_STAR)
+		printf("\tSpectral classification: %s\n", print_neutron_star_type(pStar->class.neutron_star_type)); 
 	else
 		printf("\tSpectral classification: %c%d%s\n",
 			print_temperature_letter(pStar->class.temperature_class),
@@ -515,6 +521,24 @@ static SpectralClass get_white_dwarf_spectral_class(int surface_temp, double age
 	return spectral_class;
 }
 
+static SpectralClass get_neutron_star_spectral_class(double age)
+{
+	SpectralClass spectral_class;
+	double roll = my_rand_double(0.0, 100.0);
+
+	spectral_class.temperature_class = TC_UNASSIGNED;
+	spectral_class.emission_class = WRE_UNASSIGNED;
+	spectral_class.atmosphere = AC_UNASSIGNED;
+	spectral_class.grade = -1;
+	spectral_class.luminosity_class = LC_UNASSIGNED;
+
+	if		(age < 0.01 && roll < 8.0)	spectral_class.neutron_star_type = NST_MAGNETAR;
+	else if (roll < 30.0)				spectral_class.neutron_star_type = NST_PULSAR;
+	else								spectral_class.neutron_star_type = NST_ISOLATED;
+
+	return spectral_class;
+}
+
 // Takes the enum and creates an equivalent printable format
 static char print_temperature_letter(TemperatureClassLetter letter)
 {
@@ -576,6 +600,18 @@ static char* print_white_dwarf_atmospheric_composition(WhiteDwarfAtmosphere atmo
 		case AC_DC: return "DC";
 	}
 
+	return "?"; 
+}
+
+static char* print_neutron_star_type(NeutronStarType type)
+{
+	switch (type)
+	{
+		case NST_ISOLATED:	return "Common Neutron Star";
+		case NST_PULSAR:	return "Pulsar";
+		case NST_MAGNETAR:	return "Magnetar"; 
+	}
+	
 	return "?"; 
 }
 
@@ -661,4 +697,19 @@ static void generate_white_dwarf_information(Star* pStar)
 	pStar->surface_temp = (int)(clamp((5778.0 * pow(pStar->luminosity / (pStar->radius * pStar->radius), 0.25)), 3000.0, 150000.0) + 0.5);
 	pStar->density = get_density(pStar->mass, pStar->radius);
 	pStar->class = get_white_dwarf_spectral_class(pStar->surface_temp, pStar->age);
+}
+
+static void generate_neutron_star_information(Star* pStar)
+{
+	const double progenitor_mass = pStar->mass;
+
+	pStar->type = ST_NEUTRON_STAR;
+	// Scales neutron star mass from progenitor mass, capped below the uncertain TOV limit.
+	pStar->mass = clamp(((1.15 + ((progenitor_mass - 8.0) / (20.0 - 8.0)) * (2.10 - 1.15)) * my_rand_double(0.96, 1.04)), 1.10, 2.30); 
+	// Neutron star radius is weakly reduced with higher mass, then converted from km to solar radii.
+	pStar->radius = clamp(((13.5 - ((pStar->mass - 1.1) / (2.3 - 1.1)) * (13.5 - 10.0)) * my_rand_double(0.96, 1.04)), 10.0, 14.0) / 695700.0;
+	pStar->surface_temp = (int)(clamp(1000000.0 / pow(1.0 + pStar->age / 0.001, 0.5), 100000.0, 1000000.0) + 0.5);
+	pStar->luminosity = get_luminosity(pStar->radius, pStar->surface_temp);
+	pStar->density = get_density(pStar->mass, pStar->radius);
+	pStar->class = get_neutron_star_spectral_class(pStar->age);
 }
