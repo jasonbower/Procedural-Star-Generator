@@ -184,14 +184,15 @@ void star_generate_random(STAR hStar)
 			exit(1);
 	}
 
-	if (is_remnant == TRUE)
+	if (is_remnant == TRUE && get_total_lifetime(pStar->mass) < 13.8)
 	{
-		pStar->age = my_rand_double(0.0, clamp(13.8 - get_total_lifetime(pStar->mass), 0.0, 13.8));	// Random remnant age based on how long ago the progenitor star could have died.
+		// Random remnant age based on how long ago the progenitor star could have died.
+		pStar->age = get_total_lifetime(pStar->mass) + my_rand_double(0.001, 13.8 - get_total_lifetime(pStar->mass));
 
 		if		(pStar->mass < 8.0 && should_generate_hot_subdwarf(pStar->age) == TRUE)	generate_hot_subdwarf_information(pStar); 
 		else if (pStar->mass < 8.0)														generate_white_dwarf_information(pStar);
 		else if (pStar->mass >= 8.0 && pStar->mass < 20.0)								generate_neutron_star_information(pStar);
-		else if (pStar->mass >= 20.0)													generate_black_hole_information(pStar); 
+		else																			generate_black_hole_information(pStar); 
 	}
 }
 
@@ -697,11 +698,9 @@ static void generate_hot_subdwarf_information(Star* pStar)
 static void generate_white_dwarf_information(Star* pStar)
 {
 	const double progenitor_mass = pStar->mass;
-	const double progenitor_lifetime = get_total_lifetime(progenitor_mass);
 
 	pStar->type = ST_WHITE_DWARF;
 	pStar->mass = clamp(((0.125 * progenitor_mass + 0.40) * my_rand_double(0.96, 1.04)), 0.05, 1.44);
-	pStar->age = my_rand_double(0.001, clamp(13.8 - progenitor_lifetime, 0.0, 13.8));
 	// White dwarf radius shrinks as mass increases, approaching zero near the Chandrasekhar limit (1.44 Solar Masses).
 	pStar->radius = clamp((0.012 * sqrt(pow(1.44 / pStar->mass, 2.0 / 3.0) - pow(pStar->mass / 1.44, 2.0 / 3.0))), 0.003, 0.035);
 	pStar->luminosity = clamp(0.1 / pow(pStar->age + 0.01, 5.0 / 7.0), 0.00001, 100.0);	// White dwarf luminosity decreases over time using a simplified Mestel cooling law approximation.
