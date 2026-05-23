@@ -10,6 +10,8 @@ The project aims to produce scientifically believable stars while still being su
 
 ## Installation & How To Compile
 
+**NOTE:** It is highly recommended that you download the program from the **Releases** tab, preferably the latest release, rather than downloading directly from the repository code view. Official releases are stable, usable versions of the program, while files in the repository code view may be experimental, unfinished, or buggy.
+
 ### Visual Studio: 
 
 1. Open `Procedural-Star-Generator.slnx` in Visual Studio.
@@ -64,7 +66,7 @@ Star 1:
 
 This project is source-available under the Bower Source License (BSL) v1.0
 
-You may use, study, modify, and distribute this software with attribution, but you may not directly monetize or commercially exploit the software or derivative works.
+You may use, study, modify, and distribute this software with attribution, but you may not directly monetize or commercially exploit the software or derivative works without explicit permission from the author. 
 
 See the LICENSE file for full details.
 
