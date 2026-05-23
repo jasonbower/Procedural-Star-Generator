@@ -156,7 +156,8 @@ STAR star_init_default(void)
 void star_generate_random(STAR hStar)
 {
 	Star* pStar = (Star*)hStar;
-	Boolean is_remnant = FALSE; 
+	Boolean is_remnant = FALSE;
+	double progenitor_lifetime;
 
 	if (pStar == NULL)
 	{
@@ -164,9 +165,13 @@ void star_generate_random(STAR hStar)
 		exit(1);
 	}
 
-	if (my_rand_double(0.0, 100.0) < 8.0)	is_remnant = TRUE; 
+	if (my_rand_double(0.0, 100.0) < 8.0)	is_remnant = TRUE;
 
-	pStar->mass = generate_mass();
+	do
+	{
+		pStar->mass = generate_mass();
+	} while (is_remnant == TRUE && get_total_lifetime(pStar->mass) >= 13.8);
+
 	pStar->type = should_generate_cool_subdwarf(pStar->mass);
 
 	if (pStar->type == ST_UNASSIGNED)	pStar->type = ST_STANDARD;
@@ -184,15 +189,18 @@ void star_generate_random(STAR hStar)
 			exit(1);
 	}
 
-	if (is_remnant == TRUE && get_total_lifetime(pStar->mass) < 13.8)
+	if (is_remnant == TRUE)
 	{
-		// Random remnant age based on how long ago the progenitor star could have died.
-		pStar->age = get_total_lifetime(pStar->mass) + my_rand_double(0.001, 13.8 - get_total_lifetime(pStar->mass));
+		progenitor_lifetime = get_total_lifetime(pStar->mass);
 
-		if		(pStar->mass < 8.0 && should_generate_hot_subdwarf(pStar->age) == TRUE)	generate_hot_subdwarf_information(pStar); 
+		pStar->age = my_rand_double(0.0, 13.8 - progenitor_lifetime);	// Random remnant age based on how long ago the progenitor star could have died.
+
+		if		(pStar->mass < 8.0 && should_generate_hot_subdwarf(pStar->age) == TRUE)	generate_hot_subdwarf_information(pStar);
 		else if (pStar->mass < 8.0)														generate_white_dwarf_information(pStar);
 		else if (pStar->mass >= 8.0 && pStar->mass < 20.0)								generate_neutron_star_information(pStar);
-		else																			generate_black_hole_information(pStar); 
+		else																			generate_black_hole_information(pStar);
+
+		pStar->age += progenitor_lifetime;
 	}
 }
 
