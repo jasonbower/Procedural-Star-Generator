@@ -98,7 +98,6 @@ static double generate_mass(void);
 static StarType should_generate_cool_subdwarf(double mass);
 static Boolean should_generate_wolf_rayet(double mass, double metallicity, double age); 
 static Boolean should_generate_hot_subdwarf(double age); 
-static double generate_subdwarf_metallicity(void);
 static double generate_age(double mass, double metallicity, StarType type);
 static double get_radius(double mass, double metallicity, double age);
 static int get_surface_temp(double mass, double metallicity, double age, double radius);
@@ -308,17 +307,12 @@ static double generate_mass(void)
 	return my_log_interpolate(roll, prob_table, generation_mass_table, SIZE(weights));
 }
 
-// Determines if a star should be a cool subdwarf, probability increases with mass.
+// Determines if a star should be a cool subdwarf, probability decreases as mass increases.
 static StarType should_generate_cool_subdwarf(double mass)
 {
-	double chance;
+	const double chance = clamp((1.5 * (2.0 - mass) / (2.0 - 0.079)), 0.0, 1.5);
 
 	if (mass > 2.0)	return ST_STANDARD;
-
-	if		(mass < 0.45)	chance = 1.0;
-	else if (mass < 0.80)	chance = 0.75;
-	else if (mass < 1.20)	chance = 0.1;
-	else					chance = 0.025;
 
 	return (my_rand_double(0.0, 100.0) < chance) ? ST_COOL_SUBDWARF : ST_STANDARD;
 }
@@ -327,20 +321,12 @@ static StarType should_generate_cool_subdwarf(double mass)
 static Boolean should_generate_wolf_rayet(double mass, double metallicity, double age)
 {
 	const double life_progress = age / get_total_lifetime(mass);
-	double chance;
+	double chance = clamp((2.0 + ((mass - 20.0) / (100.0 - 20.0)) * (40.0 - 2.0)), 2.0, 40.0) * clamp(1.0 + 0.25 * metallicity, 0.5, 1.5);
 
 	if (mass < 20.0)	return FALSE;
 
 	// WR stars are modeled as a late-life phase, not an early main-sequence state.
 	if (life_progress < 0.65)	return FALSE;
-
-	if		(mass < 30.0)	chance = 2.0;
-	else if (mass < 60.0)	chance = 10.0;
-	else if (mass < 100.0)	chance = 20.0;
-	else					chance = 40.0;
-
-	// Higher metallicity strengthens stellar winds, making WR formation more likely.
-	chance *= clamp(1.0 + 0.25 * metallicity, 0.5, 1.5);
 
 	if (life_progress > 0.85)	chance *= 1.5;
 
@@ -353,14 +339,6 @@ static Boolean should_generate_hot_subdwarf(double age)
 	if (age > 0.10)	return FALSE;	// Hot subdwarf phase only allowed within 100 Myr after progenitor death.
 
 	return (my_rand_double(0.0, 100.0) < 2.0) ? TRUE : FALSE;
-}
-
-// Generate low metallicity Fe/H values for metal-poor subdwarf stars.
-static double generate_subdwarf_metallicity(void)
-{
-	const double fe_h = my_rand_normal(-2.0, 0.45);
-
-	return clamp(fe_h, -7.0, -0.5);
 }
 
 // Metal-poor and subdwarf stars are biased toward older ages, younger stars are biased oppositely.
@@ -658,7 +636,7 @@ static void generate_standard_star_information(Star* pStar)
 // Generates the star information for a cool subdwarf
 static void generate_cool_subdwarf_information(Star* pStar)
 {
-	pStar->metallicity = generate_subdwarf_metallicity();
+	pStar->metallicity = clamp(my_rand_normal(-2.0, 0.45), -7.0, -0.5);
 	pStar->age = generate_age(pStar->mass, pStar->metallicity, pStar->type);
 	pStar->radius = get_radius(pStar->mass, pStar->metallicity, pStar->age);
 	pStar->surface_temp = get_surface_temp(pStar->mass, pStar->metallicity, pStar->age, pStar->radius);

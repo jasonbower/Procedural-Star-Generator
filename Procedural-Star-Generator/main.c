@@ -18,7 +18,7 @@ int main(int argc, char* argv[])
 	printf("SEED: %lu\n\n", seed);
 	srand(seed);
 
-	for (int i = 0; i < 1000; i++)
+	for (int i = 0; i < 1; i++)
 	{
 		STAR hStar;
 
